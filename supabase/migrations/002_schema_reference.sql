@@ -1,0 +1,4 @@
+-- TimeBet Supabase Schema (already deployed)
+-- This file is for documentation/reference.
+-- Schema: sports_fixtures, sports_odds, sports_predictions, analytics_events
+-- Includes RLS policies, indexes, and cancel_prediction() function.

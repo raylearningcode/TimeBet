@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TimeBet</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_casino">Casino</string>
+    <string name="tab_sports">Sports</string>
+    <string name="tab_activity">Activity</string>
+    <string name="remaining">REMAINING</string>
+    <string name="used_today">USED TODAY</string>
+    <string name="now_using">NOW USING</string>
+    <string name="times_up">TIME\'S UP</string>
+    <string name="times_up_message">You\'ve used today\'s available entertainment time.</string>
+    <string name="base_allowance">Base</string>
+    <string name="won">Won</string>
+    <string name="lost">Lost</string>
+    <string name="available_to_play">available to play</string>
+    <string name="risk_time_not_money">Risk time. Not money.</string>
+    <string name="your_time_is_limited">Your time is limited. Spend it, or risk it.</string>
+    <string name="casino">CASINO</string>
+    <string name="sports">SPORTS</string>
+    <string name="activity">ACTIVITY</string>
+    <string name="settings">Settings</string>
+    <string name="next_reset">Next reset</string>
+    <string name="view_activity">View Activity</string>
+    <string name="back">Back</string>
+    <string name="tracking_unavailable">Time tracking is temporarily unavailable.</string>
+    <string name="fix_tracking">Fix Tracking</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="stake">Stake</string>
+    <string name="cash_out">Cash Out</string>
+    <string name="flip">Flip</string>
+    <string name="heads">Heads</string>
+    <string name="tails">Tails</string>
+    <string name="place_prediction">Place Prediction</string>
+    <string name="locked">Locked</string>
+    <string name="cancel_prediction">Cancel Prediction</string>
+</resources>
