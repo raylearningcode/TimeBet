@@ -14,3 +14,7 @@ local.properties
 *.aab
 *.jks
 *.keystore
+bld.txt
+build_err.txt
+build_log.txt
+supabase/.temp/
