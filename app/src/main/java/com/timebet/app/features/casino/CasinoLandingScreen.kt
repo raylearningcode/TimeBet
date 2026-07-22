@@ -599,26 +599,36 @@ private fun InlineMines(balance: Long, isLocked: Boolean) {
 
 // ─── Inline Roulette ───
 
+data class RoulettePlacement(val type: BetType, val number: Int = -1, val dozen: Int = -1, val column: Int = -1)
+
 @Composable
 private fun InlineRoulette(balance: Long, isLocked: Boolean) {
     val scope = rememberCoroutineScope()
     var stakeSeconds by remember { mutableLongStateOf(5 * 60L) }
-    var selectedBetType by remember { mutableStateOf<BetType?>(null) }
-    var selectedNumber by remember { mutableIntStateOf(-1) }
-    var selectedDozen by remember { mutableIntStateOf(-1) }
-    var selectedColumn by remember { mutableIntStateOf(-1) }
+    var placements by remember { mutableStateOf<List<RoulettePlacement>>(emptyList()) }
     var phase by remember { mutableStateOf("betting") }
     var spinResult by remember { mutableStateOf<RouletteSpinResult?>(null) }
-    var betResult by remember { mutableStateOf<RouletteBetResult?>(null) }
+    var totalWin by remember { mutableLongStateOf(0L) }
+    var totalLoss by remember { mutableLongStateOf(0L) }
     var displayNumber by remember { mutableIntStateOf(0) }
     val wheelRotation = remember { Animatable(0f) }
 
-    fun buildBet(): RouletteBet? {
-        val type = selectedBetType ?: return null
-        return RouletteBet(type = type, stakeSeconds = stakeSeconds,
-            numbers = if (selectedNumber >= 0) listOf(selectedNumber) else emptyList(),
-            dozens = if (selectedDozen > 0) listOf(selectedDozen) else emptyList(),
-            columns = if (selectedColumn > 0) listOf(selectedColumn) else emptyList())
+    fun togglePlacement(p: RoulettePlacement) {
+        placements = if (placements.any { it.type == p.type && it.number == p.number && it.dozen == p.dozen && it.column == p.column }) {
+            placements.filter { !(it.type == p.type && it.number == p.number && it.dozen == p.dozen && it.column == p.column) }
+        } else { placements + p }
+    }
+
+    fun isSelected(type: BetType, number: Int = -1, dozen: Int = -1, column: Int = -1): Boolean =
+        placements.any { it.type == type && it.number == number && it.dozen == dozen && it.column == column }
+
+    fun hasAnyBet(): Boolean = placements.isNotEmpty()
+
+    fun buildBets(): List<RouletteBet> = placements.map { p ->
+        RouletteBet(type = p.type, stakeSeconds = stakeSeconds,
+            numbers = if (p.number >= 0) listOf(p.number) else emptyList(),
+            dozens = if (p.dozen > 0) listOf(p.dozen) else emptyList(),
+            columns = if (p.column > 0) listOf(p.column) else emptyList())
     }
 
     /**
@@ -634,7 +644,8 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
     }
 
     fun spin() {
-        val bet = buildBet() ?: return
+        val bets = buildBets()
+        if (bets.isEmpty()) return
         scope.launch {
             phase = "spinning"
 
@@ -654,42 +665,47 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
                 }
             }
 
-            // Smooth multi-phase wheel spin
+            // Quick multi-phase wheel spin
             val numberAngle = numberToAngle(result.number)
-            val spinCount = (5..8).random()
+            val spinCount = (4..6).random()
             val targetAngle = spinCount * 360f + (360f - numberAngle)
 
             wheelRotation.snapTo(0f)
 
-            // Phase 1: Fast spin — 1400ms
+            // Phase 1: Fast spin — 700ms
             wheelRotation.animateTo(
                 targetAngle * 0.7f,
-                animationSpec = tween(1400, easing = LinearEasing)
+                animationSpec = tween(700, easing = LinearEasing)
             )
 
-            // Phase 2: Gradual deceleration — 800ms
+            // Phase 2: Deceleration — 350ms
             wheelRotation.animateTo(
                 targetAngle * 0.93f,
-                animationSpec = tween(800, easing = FastOutSlowInEasing)
+                animationSpec = tween(350, easing = FastOutSlowInEasing)
             )
 
-            // Kill random flashing NOW — show result during spring settle
+            // Kill random flashing — show result now
             numberJob.cancel()
 
-            // Phase 3: Fine settle with spring physics — result already showing
+            // Phase 3: Quick settle — result showing
             displayNumber = result.number
             wheelRotation.animateTo(
                 targetAngle,
-                animationSpec = spring(dampingRatio = 0.45f, stiffness = 70f)
+                animationSpec = spring(dampingRatio = 0.35f, stiffness = 150f)
             )
 
-            val evaluated = ServiceLocator.timeBankRepository.evaluateRouletteBet(bet, result)
-            betResult = evaluated
-            ServiceLocator.timeBankRepository.settleCasinoRound(
-                gameType = "roulette", stakeSeconds = stakeSeconds,
-                isWin = evaluated.isWin, profitSeconds = evaluated.profitSeconds,
-                metadataJson = "{\"number\":${result.number},\"bet_type\":\"${bet.type.name}\",\"payout\":${evaluated.payoutMultiplier}}"
-            )
+            // Settle all placed bets
+            totalWin = 0L; totalLoss = 0L
+            for (bet in bets) {
+                val evaluated = ServiceLocator.timeBankRepository.evaluateRouletteBet(bet, result)
+                if (evaluated.isWin) totalWin += evaluated.profitSeconds
+                else totalLoss += evaluated.lossSeconds
+                ServiceLocator.timeBankRepository.settleCasinoRound(
+                    gameType = "roulette", stakeSeconds = stakeSeconds,
+                    isWin = evaluated.isWin, profitSeconds = evaluated.profitSeconds,
+                    metadataJson = "{\"number\":${result.number},\"bet_type\":\"${bet.type.name}\"}"
+                )
+            }
             phase = "result"
         }
     }
@@ -803,16 +819,18 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Result
-        AnimatedVisibility(visible = phase == "result" && betResult != null,
+        // Result — show combined multi-bet outcome
+        AnimatedVisibility(visible = phase == "result",
             enter = fadeIn(spring()) + slideInVertically(spring()) { it / 2 }) {
-            betResult?.let { br ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (br.isWin) "YOU WIN!" else "YOU LOSE", style = TimeBetTypography.headlineMedium,
-                        color = if (br.isWin) TimeBetGreen else TimeBetRed, fontWeight = FontWeight.Bold)
-                    Text(if (br.isWin) "+${TimeFormatter.formatMinutesSeconds(br.profitSeconds)}" else "-${TimeFormatter.formatMinutesSeconds(br.lossSeconds)}",
-                        style = TimeBetTypography.labelLarge, color = if (br.isWin) TimeBetGreen else TimeBetRed)
-                }
+            val net = totalWin - totalLoss
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (net > 0) "YOU WIN!" else if (net < 0) "YOU LOSE" else "PUSH",
+                    style = TimeBetTypography.headlineMedium,
+                    color = when { net > 0 -> TimeBetGreen; net < 0 -> TimeBetRed; else -> TimeBetAmber },
+                    fontWeight = FontWeight.Bold)
+                if (totalWin > 0) Text("+${TimeFormatter.formatMinutesSeconds(totalWin)}", style=TimeBetTypography.labelLarge, color=TimeBetGreen)
+                if (totalLoss > 0) Text("-${TimeFormatter.formatMinutesSeconds(totalLoss)}", style=TimeBetTypography.labelLarge, color=TimeBetRed)
+                if (net != 0L) Text("Net: ${if(net>0) "+" else ""}${TimeFormatter.formatMinutesSeconds(net)}", style=TimeBetTypography.labelSmall, color=TimeBetTextSecondary)
             }
         }
 
@@ -822,62 +840,68 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
             "betting" -> {
                 // ── Simple betting board ──
                 // Number grid: compact 6-col grid
-                Text("Pick a number or tap a bet below", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                Text("Tap to add bets (multi-bet supported)", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
                 Spacer(Modifier.height(6.dp))
                 val reds = ServiceLocator.rouletteEngine.redNumbers
                 LazyVerticalGrid(columns = GridCells.Fixed(6), modifier = Modifier.height(140.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items((0..36).toList()) { num ->
-                        val isRed = num in reds; val isZero = num == 0; val sel = selectedNumber == num
+                        val isRed = num in reds; val isZero = num == 0
+                        val sel = isSelected(BetType.STRAIGHT, number = num)
                         Box(
                             Modifier.clip(RoundedCornerShape(4.dp))
                                 .background(when { sel -> TimeBetWhite; isZero -> TimeBetGreen.copy(alpha=0.6f); isRed -> TimeBetRed.copy(alpha=0.4f); else -> Color(0xFF1A1A2E) })
-                                .clickable { selectedNumber = num; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 }
+                                .clickable { togglePlacement(RoulettePlacement(BetType.STRAIGHT, number = num)) }
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) { Text("$num", style=TimeBetTypography.labelSmall, color=if(sel) TimeBetBlack else TimeBetWhite) }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // Popular bets — big colorful buttons
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("RED" to (BetType.RED to TimeBetRed), "BLACK" to (BetType.BLACK to Color(0xFF1A1A2E))
                     ).forEach { (l, p) ->
-                        val bt = p.first; val bg = p.second
+                        val bt = p.first; val bg = p.second; val sel = isSelected(bt)
                         Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp))
-                            .background(if(selectedBetType==bt) TimeBetWhite else bg)
-                            .border(1.dp, if(selectedBetType==bt) TimeBetWhite else TimeBetBorder, RoundedCornerShape(8.dp))
-                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
+                            .background(if(sel) TimeBetWhite else bg)
+                            .border(1.dp, if(sel) TimeBetWhite else TimeBetBorder, RoundedCornerShape(8.dp))
+                            .clickable { togglePlacement(RoulettePlacement(bt)) },
                             contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelLarge, fontWeight=FontWeight.Bold, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
+                        ) { Text(l, style=TimeBetTypography.labelLarge, fontWeight=FontWeight.Bold, color=if(sel) TimeBetBlack else TimeBetWhite) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("1-18" to BetType.LOW, "EVEN" to BetType.EVEN, "ODD" to BetType.ODD, "19-36" to BetType.HIGH
                     ).forEach { (l, bt) ->
+                        val sel = isSelected(bt)
                         Box(Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(8.dp))
-                            .background(if(selectedBetType==bt) TimeBetWhite else TimeBetSurfaceElevated)
-                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
+                            .background(if(sel) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { togglePlacement(RoulettePlacement(bt)) },
                             contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelSmall, fontWeight=FontWeight.Medium, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
+                        ) { Text(l, style=TimeBetTypography.labelSmall, fontWeight=FontWeight.Medium, color=if(sel) TimeBetBlack else TimeBetWhite) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("1st 12" to 1, "2nd 12" to 2, "3rd 12" to 3).forEach { (l, d) ->
+                        val sel = isSelected(BetType.DOZEN, dozen = d)
                         Box(Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(6.dp))
-                            .background(if(selectedDozen==d) TimeBetWhite else TimeBetSurfaceElevated)
-                            .clickable { selectedDozen=d; selectedBetType=BetType.DOZEN; selectedNumber=-1; selectedColumn=-1 },
+                            .background(if(sel) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { togglePlacement(RoulettePlacement(BetType.DOZEN, dozen = d)) },
                             contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedDozen==d) TimeBetBlack else TimeBetTextSecondary) }
+                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(sel) TimeBetBlack else TimeBetTextSecondary) }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
                 InlineStakeSelector(balance = balance, stake = stakeSeconds, onStakeChange = { stakeSeconds = it })
                 Spacer(Modifier.height(8.dp))
+                val totalStake = stakeSeconds * placements.size.coerceAtLeast(1)
+                val betLabel = if (placements.size == 1) "1 bet" else "${placements.size} bets"
+                Text("$betLabel · Total: ${TimeFormatter.formatMinutesShort(totalStake)}", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                Spacer(Modifier.height(6.dp))
                 Button(onClick = { spin() },
-                    enabled = stakeSeconds in 1..balance && !isLocked,
+                    enabled = hasAnyBet() && stakeSeconds in 1..balance && !isLocked,
                     colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
@@ -885,7 +909,7 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
             }
             "result" -> {
                 Button(
-                    onClick = { phase = "betting"; selectedBetType = null; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1; spinResult = null; betResult = null; displayNumber = 0 },
+                    onClick = { phase = "betting"; placements = emptyList(); spinResult = null; totalWin = 0; totalLoss = 0; displayNumber = 0 },
                     enabled = !isLocked,
                     colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack),
                     shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth().height(48.dp)

@@ -4,10 +4,13 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -156,33 +159,24 @@ fun LoginScreen(onLoginComplete: () -> Unit) {
             }
         }
 
-        // Error message
+        // Error message — prominent card at top
         if (errorMessage != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                errorMessage!!,
-                style = TimeBetTypography.labelSmall,
-                color = TimeBetRed,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(TimeBetRed.copy(alpha = 0.15f))
+                    .border(1.dp, TimeBetRed.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .padding(16.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Warning, null, tint = TimeBetRed, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(errorMessage!!, style = TimeBetTypography.bodyMedium, color = TimeBetRed)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
-
-        // Diagnostic info
-        Spacer(modifier = Modifier.height(16.dp))
-        val webClientId = com.timebet.app.BuildConfig.GOOGLE_WEB_CLIENT_ID
-        Text(
-            if (webClientId.isNotEmpty()) "OAuth configured" else "OAuth not configured — add google.web.client.id to gradle.properties",
-            style = TimeBetTypography.labelSmall,
-            color = if (webClientId.isNotEmpty()) TimeBetGreen.copy(alpha = 0.5f) else TimeBetRed.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center
-        )
-        Text(
-            "Make sure: 1) Supabase → Google provider ON  2) Google Cloud → OAuth consent published  3) SHA-1 registered",
-            style = TimeBetTypography.labelSmall,
-            color = TimeBetTextTertiary.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
