@@ -29,7 +29,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -818,82 +820,75 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
 
         when (phase) {
             "betting" -> {
-                val betTypes = listOf(
-                    BetType.RED to "Red", BetType.BLACK to "Black",
-                    BetType.ODD to "Odd", BetType.EVEN to "Even",
-                    BetType.LOW to "1-18", BetType.HIGH to "19-36",
-                    BetType.DOZEN to "Dozens", BetType.COLUMN to "Columns",
-                    BetType.STRAIGHT to "Number"
+                // ── Stake-style betting table ──
+                // Row: 0 at top
+                Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.Center) {
+                    val isSel = selectedNumber == 0
+                    Box(
+                        modifier = Modifier.weight(1f).padding(1.dp).height(32.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSel) TimeBetWhite else TimeBetGreen.copy(alpha = 0.6f))
+                            .clickable { selectedNumber = 0; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 },
+                        contentAlignment = Alignment.Center
+                    ) { Text("0", style = TimeBetTypography.labelSmall, color = if (isSel) TimeBetBlack else TimeBetWhite) }
+                }
+                // Numbers grid: European layout (3 cols, 12 rows)
+                val grid = listOf(
+                    listOf(3,6,9,12,15,18,21,24,27,30,33,36),
+                    listOf(2,5,8,11,14,17,20,23,26,29,32,35),
+                    listOf(1,4,7,10,13,16,19,22,25,28,31,34)
                 )
-                // Row 1: first 4 chips
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    betTypes.take(4).forEach { (type, label) ->
-                        FilterChip(
-                            selected = selectedBetType == type,
-                            onClick = { selectedBetType = type; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1 },
-                            label = { Text(label, style = TimeBetTypography.labelSmall) },
-                            modifier = Modifier.weight(1f),
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TimeBetWhite, selectedLabelColor = TimeBetBlack, containerColor = TimeBetSurfaceElevated, labelColor = TimeBetWhite),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                // Row 2: remaining 5 chips
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    betTypes.drop(4).forEach { (type, label) ->
-                        FilterChip(
-                            selected = selectedBetType == type,
-                            onClick = { selectedBetType = type; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1 },
-                            label = { Text(label, style = TimeBetTypography.labelSmall) },
-                            modifier = Modifier.weight(1f),
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TimeBetWhite, selectedLabelColor = TimeBetBlack, containerColor = TimeBetSurfaceElevated, labelColor = TimeBetWhite),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                // Number grid for straight bets
-                if (selectedBetType == BetType.STRAIGHT) {
-                    LazyVerticalGrid(columns = GridCells.Fixed(6), modifier = Modifier.height(160.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        items((0..36).toList()) { num ->
-                            val bg = when {
-                                num == 0 -> TimeBetGreen.copy(alpha = 0.5f)
-                                num in ServiceLocator.rouletteEngine.redNumbers -> TimeBetRed.copy(alpha = 0.3f)
-                                else -> TimeBetSurfaceElevated
-                            }
-                            Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (selectedNumber == num) TimeBetWhite else bg)
-                                .clickable { selectedNumber = num }.padding(6.dp), contentAlignment = Alignment.Center) {
-                                Text("$num", style = TimeBetTypography.labelSmall, color = if (selectedNumber == num) TimeBetBlack else TimeBetWhite)
-                            }
+                val reds = ServiceLocator.rouletteEngine.redNumbers
+                for (row in 0 until 12) {
+                    Row(Modifier.fillMaxWidth()) {
+                        grid.forEach { col ->
+                            val num = col[row]; val isRed = num in reds; val sel = selectedNumber == num
+                            Box(Modifier.weight(1f).padding(1.dp).height(30.dp).clip(RoundedCornerShape(3.dp))
+                                .background(when { sel -> TimeBetWhite; isRed -> TimeBetRed.copy(alpha=0.45f); else -> Color(0xFF1A1A2E) })
+                                .clickable { selectedNumber = num; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 },
+                                contentAlignment = Alignment.Center
+                            ) { Text("$num", style=TimeBetTypography.labelSmall, color=if(sel) TimeBetBlack else TimeBetWhite) }
                         }
                     }
                 }
-                if (selectedBetType == BetType.DOZEN) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("1st 12" to 1, "2nd 12" to 2, "3rd 12" to 3).forEach { (label, d) ->
-                            FilterChip(selected = selectedDozen == d, onClick = { selectedDozen = d }, label = { Text(label, style = TimeBetTypography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TimeBetWhite, selectedLabelColor = TimeBetBlack, containerColor = TimeBetSurfaceElevated, labelColor = TimeBetWhite),
-                                shape = RoundedCornerShape(6.dp))
-                        }
+                Spacer(Modifier.height(4.dp))
+                // Outside bets
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    listOf("1st 12" to 1, "2nd 12" to 2, "3rd 12" to 3).forEach { (l, d) ->
+                        Box(Modifier.weight(1f).height(30.dp).clip(RoundedCornerShape(4.dp))
+                            .background(if(selectedDozen==d) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { selectedDozen=d; selectedBetType=BetType.DOZEN; selectedNumber=-1; selectedColumn=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedDozen==d) TimeBetBlack else TimeBetWhite) }
                     }
                 }
-                if (selectedBetType == BetType.COLUMN) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Col 1" to 1, "Col 2" to 2, "Col 3" to 3).forEach { (label, c) ->
-                            FilterChip(selected = selectedColumn == c, onClick = { selectedColumn = c }, label = { Text(label, style = TimeBetTypography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TimeBetWhite, selectedLabelColor = TimeBetBlack, containerColor = TimeBetSurfaceElevated, labelColor = TimeBetWhite),
-                                shape = RoundedCornerShape(6.dp))
-                        }
+                Spacer(Modifier.height(2.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    listOf("1-18" to BetType.LOW, "EVEN" to BetType.EVEN, "RED" to BetType.RED,
+                        "BLACK" to BetType.BLACK, "ODD" to BetType.ODD, "19-36" to BetType.HIGH
+                    ).forEach { (l, bt) ->
+                        Box(Modifier.weight(1f).height(32.dp).clip(RoundedCornerShape(4.dp))
+                            .background(when { selectedBetType==bt -> TimeBetWhite; l=="RED" -> TimeBetRed.copy(alpha=0.35f); else -> TimeBetSurfaceElevated })
+                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(2.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    listOf("Col 1" to 1, "Col 2" to 2, "Col 3" to 3).forEach { (l, c) ->
+                        Box(Modifier.weight(1f).height(26.dp).clip(RoundedCornerShape(4.dp))
+                            .background(if(selectedColumn==c) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { selectedColumn=c; selectedBetType=BetType.COLUMN; selectedNumber=-1; selectedDozen=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelSmall.copy(fontSize=10.sp), color=if(selectedColumn==c) TimeBetBlack else TimeBetTextSecondary) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 InlineStakeSelector(balance = balance, stake = stakeSeconds, onStakeChange = { stakeSeconds = it })
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = { spin() },
-                    enabled = buildBet() != null && stakeSeconds in 1..balance && !isLocked,
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { spin() },
+                    enabled = stakeSeconds in 1..balance && !isLocked,
                     colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
@@ -901,7 +896,7 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
             }
             "result" -> {
                 Button(
-                    onClick = { phase = "betting"; spinResult = null; betResult = null; displayNumber = 0 },
+                    onClick = { phase = "betting"; selectedBetType = null; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1; spinResult = null; betResult = null; displayNumber = 0 },
                     enabled = !isLocked,
                     colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack),
                     shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth().height(48.dp)

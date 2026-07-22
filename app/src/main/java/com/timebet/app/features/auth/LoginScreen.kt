@@ -167,6 +167,23 @@ fun LoginScreen(onLoginComplete: () -> Unit) {
             )
         }
 
+        // Diagnostic info
+        Spacer(modifier = Modifier.height(16.dp))
+        val webClientId = com.timebet.app.BuildConfig.GOOGLE_WEB_CLIENT_ID
+        Text(
+            if (webClientId.isNotEmpty()) "OAuth configured" else "OAuth not configured — add google.web.client.id to gradle.properties",
+            style = TimeBetTypography.labelSmall,
+            color = if (webClientId.isNotEmpty()) TimeBetGreen.copy(alpha = 0.5f) else TimeBetRed.copy(alpha = 0.5f),
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "Make sure: 1) Supabase → Google provider ON  2) Google Cloud → OAuth consent published  3) SHA-1 registered",
+            style = TimeBetTypography.labelSmall,
+            color = TimeBetTextTertiary.copy(alpha = 0.5f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // Skip for now

@@ -165,9 +165,6 @@ class AuthManager(private val context: Context) {
             val body = JSONObject().apply {
                 put("id_token", idToken)
                 put("provider", "google")
-                put("gotrue_meta_security", JSONObject().apply {
-                    put("access_token", idToken)
-                })
             }
 
             val writer = OutputStreamWriter(conn.outputStream)
