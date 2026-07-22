@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToControlledApps: () -> Unit = {},
-    onNavigateToDevices: () -> Unit = {}
+    onNavigateToDevices: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf<UserSettingsEntity?>(null) }
@@ -112,42 +113,6 @@ fun SettingsScreen(
                 SettingsNavRow(label = "Manage Apps", route = "controlled_apps", onClick = onNavigateToControlledApps)
             }
 
-            // ── Casino ──
-            SettingsSection("Casino") {
-                SettingsRow(label = "Profit Cap", value = "${(TimeBetConstants.MAX_DAILY_BONUS_PERCENTAGE * 100).toInt()}% of daily allowance")
-                SettingsRow(label = "Max Stake", value = "${(TimeBetConstants.MAX_STAKE_PERCENTAGE * 100).toInt()}% of balance")
-                SettingsRow(label = "Fairness", value = "Crypto RNG — provably fair")
-            }
-
-            // ── Sports ──
-            SettingsSection("Sports") {
-                settings?.let { s ->
-                    SettingsRow(
-                        label = "Max Active Stake",
-                        value = TimeFormatter.formatHumanReadable(
-                            (s.baseDailyAllowanceSeconds * s.sportsStakeLimitPercentage).toLong()
-                        )
-                    )
-                }
-            }
-
-            // ── Permissions ──
-            SettingsSection("Permissions") {
-                when (val state = trackingState) {
-                    is TrackingState.HEALTHY -> SettingsRow(label = "Status", value = "All granted")
-                    is TrackingState.PERMISSION_MISSING -> {
-                        state.missingPermissions.forEach { perm ->
-                            SettingsRow(label = perm.displayName, value = "Missing — tap to fix")
-                        }
-                    }
-                    is TrackingState.UNRELIABLE -> SettingsRow(label = "Status", value = "Unreliable")
-                    is TrackingState.UNKNOWN -> SettingsRow(label = "Status", value = "Checking...")
-                }
-                SettingsRow(label = "Verify Permissions", value = "Check Now") {
-                    scope.launch { trackingState = ServiceLocator.permissionMonitor.checkPermissions() }
-                }
-            }
-
             // ── Notifications ──
             SettingsSection("Notifications") {
                 SwitchSetting(label = "Low Time Warnings", checked = settings?.notificationsEnabled ?: true) { enabled ->
@@ -185,7 +150,16 @@ fun SettingsScreen(
                         Text("Sign Out", style = TimeBetTypography.labelLarge, color = TimeBetRed)
                     }
                 } else {
-                    SettingsRow(label = "Not signed in", value = "Sign in to sync across devices")
+                    SettingsRow(label = "Not signed in", value = "Tap to sign in")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = onNavigateToLogin,
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack)
+                    ) {
+                        Text("Sign in with Google", style = TimeBetTypography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

@@ -177,6 +177,9 @@ fun TimeBetNavGraph(
                     },
                     onNavigateToDevices = {
                         navController.navigate(NavRoute.Devices.route)
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(NavRoute.Login.route)
                     }
                 )
             }

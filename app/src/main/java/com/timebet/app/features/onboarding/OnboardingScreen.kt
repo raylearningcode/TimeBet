@@ -184,13 +184,13 @@ private fun PermissionExplanationStep(onNext: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
 
         PermissionCard(
-            title = "Usage Access",
-            description = "Detects when you open entertainment apps so time can be deducted automatically.\n\nTimeBet cannot see what you do inside apps — only which app is open."
+            title = "1. Usage Access",
+            description = "Lets TimeBet know which app you're using, so it can track your screen time."
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         PermissionCard(
-            title = "Display Over Other Apps",
-            description = "Shows the Time's Up screen when your daily entertainment time runs out.\n\nWithout this, TimeBet can't block apps at zero balance."
+            title = "2. Display Over Apps",
+            description = "Lets TimeBet show a reminder when your time is up."
         )
         Spacer(modifier = Modifier.height(32.dp))
         Button(
@@ -233,7 +233,14 @@ private fun PermissionGrantStep(
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Grant Permissions", style = TimeBetTypography.headlineLarge, color = TimeBetWhite)
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Tap each button below, then find TimeBet in the list and turn it on.",
+            style = TimeBetTypography.bodyMedium,
+            color = TimeBetTextSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Usage Access
         Row(

@@ -30,6 +30,9 @@ import kotlinx.coroutines.launch
 
 data class AppCategory(val name: String, val label: String, val packages: List<String> = emptyList())
 
+// Cache installed apps to avoid slow PackageManager queries on every visit
+private var cachedInstalledApps: List<InstalledApp>? = null
+
 private val appCategories = listOf(
     AppCategory("all", "All"),
     AppCategory("social", "Social", listOf("com.facebook", "com.instagram", "com.twitter", "com.whatsapp", "com.tiktok", "com.snapchat", "com.discord", "com.telegram", "org.telegram", "com.reddit", "com.linkedin", "com.pinterest")),
@@ -50,10 +53,17 @@ fun ControlledAppsScreen(onBack: () -> Unit) {
     var selectedCount by remember { mutableIntStateOf(0) }
     var showSelectAllConfirm by remember { mutableStateOf(false) }
     var showDeselectAllConfirm by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        installedApps = ServiceLocator.appRepository.getInstalledApps()
+        // Use cached list if available, otherwise query PackageManager
+        installedApps = cachedInstalledApps ?: run {
+            val apps = ServiceLocator.appRepository.getInstalledApps()
+            cachedInstalledApps = apps
+            apps
+        }
         controlledApps = ServiceLocator.appRepository.getAllControlledApps()
+        isLoading = false
     }
 
     val controlledPackages = controlledApps.filter { it.isControlled }.map { it.packageName }.toSet()
@@ -160,7 +170,15 @@ fun ControlledAppsScreen(onBack: () -> Unit) {
         HorizontalDivider(color = TimeBetBorder.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 16.dp))
 
         // App list
-        if (filteredApps.isEmpty()) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = TimeBetWhite)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Loading apps...", style = TimeBetTypography.bodyMedium, color = TimeBetTextTertiary)
+                }
+            }
+        } else if (filteredApps.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     if (searchQuery.isNotEmpty()) "No apps matching \"$searchQuery\"" else "No apps found",
