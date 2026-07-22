@@ -470,13 +470,16 @@ private fun InlineMines(balance: Long, isLocked: Boolean) {
 
     val playingOrDone = phase in listOf("playing")
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         // ── Stats row (visible during play and result) ──
         if (playingOrDone) {
             if (resultText.isNotEmpty()) {
                 Text(resultText, style = TimeBetTypography.headlineMedium, color = resultColor, fontWeight = FontWeight.Bold)
             } else if (phase == "playing") {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(String.format("%.2fx", currentMultiplier), style = TimeBetTypography.labelLarge, color = TimeBetGreen, fontWeight = FontWeight.SemiBold)
                         Text("Multiplier", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
@@ -491,22 +494,22 @@ private fun InlineMines(balance: Long, isLocked: Boolean) {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
         }
 
-        // ── 5x5 Grid (always visible) ──
-        LazyVerticalGrid(
+        // ── 5x5 Grid ──
+        Box(modifier = Modifier.size(260.dp)) {
+            LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
-                modifier = Modifier.size(280.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.size(260.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 items(25) { index ->
                     val cellState = cells.getOrElse(index) { "hidden" }
                     val isMine = index in minePositions
-                    val showBomb = cellState in listOf("mine", "mine_revealed")
                     Box(
-                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
                             .background(when {
                                 cellState == "mine" -> TimeBetRed.copy(alpha = 0.7f)
                                 cellState == "mine_revealed" -> TimeBetRed.copy(alpha = 0.25f)
@@ -551,7 +554,8 @@ private fun InlineMines(balance: Long, isLocked: Boolean) {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            } // Box wrapper
+            Spacer(modifier = Modifier.height(10.dp))
 
         // ── Controls below grid ──
         when {
@@ -689,11 +693,11 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // ── Roulette Wheel with colored segments + pointer ──
-        val wheelSize = 140.dp
+        val wheelSize = 150.dp
         Box(
             modifier = Modifier.size(wheelSize),
             contentAlignment = Alignment.Center
@@ -750,9 +754,8 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     if (phase == "betting") "0" else "$displayNumber",
-                    style = TimeBetTypography.displayMedium,
-                    color = TimeBetWhite,
-                    fontWeight = FontWeight.Bold
+                    style = TimeBetTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                    color = TimeBetWhite
                 )
                 if (phase != "betting" && spinResult != null) {
                     val resultColor = when (spinResult!!.color) {
