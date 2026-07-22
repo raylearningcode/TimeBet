@@ -3,11 +3,9 @@ package com.timebet.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Intent
 import android.os.Build
 import com.timebet.app.core.database.AppDatabase
 import com.timebet.app.core.notifications.NotificationChannels
-import com.timebet.app.services.TimeBetForegroundService
 
 class TimeBetApp : Application() {
 
@@ -21,16 +19,6 @@ class TimeBetApp : Application() {
         database = AppDatabase.create(this)
         ServiceLocator.init(this)
         createNotificationChannels()
-
-        // Start the foreground monitoring service on app launch
-        try {
-            val serviceIntent = Intent(this, TimeBetForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
-        } catch (_: Exception) { }
     }
 
     private fun createNotificationChannels() {

@@ -1,6 +1,9 @@
 package com.timebet.app
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +17,7 @@ import com.timebet.app.design.theme.TimeBetTheme
 import com.timebet.app.features.onboarding.OnboardingPreferences
 import com.timebet.app.navigation.NavRoute
 import com.timebet.app.navigation.TimeBetNavGraph
+import com.timebet.app.services.TimeBetForegroundService
 import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
@@ -21,6 +25,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Start monitoring service from Activity (Activity has foreground privileges
+        // on Android 14+, unlike Application which may be restricted on API 35+)
+        try {
+            val serviceIntent = Intent(this, TimeBetForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start monitoring service", e)
+        }
 
         val hasCompletedOnboarding = OnboardingPreferences.hasCompletedOnboarding(this)
 
