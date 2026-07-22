@@ -3,6 +3,7 @@ package com.timebet.app.features.home
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -163,49 +165,32 @@ fun HomeScreen(
                 }
             }
 
-            // Monitoring status indicator
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(TimeBetSurfaceElevated)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Status dot
-                Box(
+            // Monitoring status — only show when there's a problem
+            if (!isMonitoring) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (isMonitoring) TimeBetGreen else TimeBetRed)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    when {
-                        !isMonitoring -> "Monitoring paused — check Usage Access"
-                        activeApp is ActiveAppState.Active -> {
-                            val active = activeApp as ActiveAppState.Active
-                            val appName = controlledApps.find { it.packageName == active.packageName }?.appName
-                                ?: active.packageName
-                            "Tracking: $appName"
-                        }
-                        else -> "Monitoring active — waiting for app usage"
-                    },
-                    style = TimeBetTypography.labelSmall,
-                    color = if (isMonitoring) TimeBetGreen else TimeBetRed,
-                    modifier = Modifier.weight(1f)
-                )
-                if (!isMonitoring) {
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(TimeBetRed.copy(alpha = 0.12f))
+                        .border(0.5.dp, TimeBetRed.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Warning, null, tint = TimeBetRed, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Monitoring paused — tap Fix",
+                        style = TimeBetTypography.labelSmall,
+                        color = TimeBetRed,
+                        modifier = Modifier.weight(1f)
+                    )
                     TextButton(onClick = {
-                        val hasPermission = ServiceLocator.permissionMonitor.hasUsageStatsPermission()
-                        if (hasPermission) {
-                            // Permission granted but monitor not running — restart
+                        if (ServiceLocator.permissionMonitor.hasUsageStatsPermission()) {
                             val intent = android.content.Intent(context, com.timebet.app.services.TimeBetForegroundService::class.java)
                             context.startForegroundService(intent)
                         } else {
-                            val intent = android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                            context.startActivity(intent)
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
                         }
                     }) {
                         Text("Fix", style = TimeBetTypography.labelSmall, color = TimeBetWhite)
@@ -213,7 +198,7 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (!isMonitoring) 24.dp else 40.dp))
 
             // Main Balance Display
             val balance = bankState?.currentBalanceSeconds ?: 0

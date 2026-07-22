@@ -210,7 +210,7 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     StatCard(
                         label = "Remaining",
-                        value = TimeFormatter.formatHumanReadable(currentBalance),
+                        value = TimeFormatter.formatDetailed(currentBalance),
                         icon = Icons.Filled.Timer,
                         modifier = Modifier.weight(1f),
                         accent = TimeBetGreen
@@ -218,7 +218,7 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
                     Spacer(modifier = Modifier.width(12.dp))
                     StatCard(
                         label = "Used",
-                        value = TimeFormatter.formatHumanReadable(todayUsage),
+                        value = TimeFormatter.formatDetailed(todayUsage),
                         icon = Icons.Filled.PlayArrow,
                         modifier = Modifier.weight(1f),
                         accent = TimeBetAmber

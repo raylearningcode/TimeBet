@@ -54,6 +54,19 @@ object TimeFormatter {
         }
     }
 
+    /** Detailed format with seconds: "1h 26m 42s" or "3m 15s" */
+    fun formatDetailed(totalSeconds: Long): String {
+        val clamped = totalSeconds.coerceAtLeast(0)
+        val hours = TimeUnit.SECONDS.toHours(clamped)
+        val minutes = TimeUnit.SECONDS.toMinutes(clamped) % 60
+        val seconds = clamped % 60
+        return when {
+            hours > 0 -> "${hours}h ${minutes}m ${seconds}s"
+            minutes > 0 -> "${minutes}m ${seconds}s"
+            else -> "${seconds}s"
+        }
+    }
+
     /**
      * Formats an instant or timestamp to display time like "14:32".
      */

@@ -10,6 +10,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.timebet.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -110,14 +111,21 @@ class AuthManager(private val context: Context) {
      */
     suspend fun handleSignInResult(data: Intent?): AuthResult = withContext(Dispatchers.IO) {
         try {
+            if (data == null) return@withContext AuthResult.Error("No sign-in data received")
+
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            val account = task.getResult(Exception::class.java)
-            val idToken = account?.idToken ?: return@withContext AuthResult.Error("No ID token received")
+            // Add timeout — getResult can hang on some devices
+            val account = withTimeout(15000L) { task.getResult(Exception::class.java) }
+            val idToken = account?.idToken
+            if (idToken == null) {
+                Log.e(TAG, "No ID token — account: ${account?.email}, serverClientId configured: ${BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotEmpty()}")
+                return@withContext AuthResult.Error("Google sign-in incomplete. Make sure Google Cloud OAuth is configured.")
+            }
 
             // Exchange Google ID token for Supabase session
             val session = exchangeTokenWithSupabase(idToken)
             if (session == null) {
-                return@withContext AuthResult.Error("Failed to exchange token with Supabase")
+                return@withContext AuthResult.Error("Could not connect to server. Check your internet connection.")
             }
 
             // Store session
@@ -130,6 +138,9 @@ class AuthManager(private val context: Context) {
             )
 
             AuthResult.Success
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.e(TAG, "Sign-in timed out")
+            AuthResult.Error("Sign-in timed out. Try again.")
         } catch (e: Exception) {
             Log.e(TAG, "Sign-in failed", e)
             AuthResult.Error(e.message ?: "Sign-in failed")
