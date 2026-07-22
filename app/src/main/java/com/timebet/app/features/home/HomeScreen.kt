@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -57,11 +58,12 @@ fun HomeScreen(
     var activeApp by remember { mutableStateOf<ActiveAppState>(ActiveAppState.None) }
     var controlledApps by remember { mutableStateOf<List<ControlledAppEntity>>(emptyList()) }
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
 
     // Live timer state — ticks every second when an app is active
     var liveElapsed by remember { mutableLongStateOf(0L) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshTrigger) {
         ServiceLocator.timeBankEngine.ensureDailyReset()
 
         launch {
@@ -95,7 +97,7 @@ fun HomeScreen(
     }
 
     // Load real app usage
-    LaunchedEffect(controlledApps) {
+    LaunchedEffect(controlledApps, refreshTrigger) {
         try {
             val now = System.currentTimeMillis()
             val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -141,12 +143,26 @@ fun HomeScreen(
                         color = TimeBetTextSecondary
                     )
                 }
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings",
-                        tint = TimeBetTextSecondary
-                    )
+                Row {
+                    IconButton(onClick = {
+                        refreshTrigger++
+                        scope.launch {
+                            ServiceLocator.timeBankEngine.ensureDailyReset()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                            tint = TimeBetTextSecondary
+                        )
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = TimeBetTextSecondary
+                        )
+                    }
                 }
             }
 

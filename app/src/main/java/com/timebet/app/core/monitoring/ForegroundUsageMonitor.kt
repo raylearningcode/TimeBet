@@ -164,14 +164,21 @@ class ForegroundUsageMonitor(
                     handleForegroundChange(foregroundPackage, eventTime)
                 }
             } else {
-                // No new foreground event in this window. Maintain current session state.
-                // The user is likely still using the same app without generating new events.
+                // No new foreground event in this window.
                 consecutiveEmptyPolls++
 
-                // Periodically verify the current session is still valid
-                if (currentSession != null && consecutiveEmptyPolls >= EMPTY_POLLS_BEFORE_VERIFY) {
-                    consecutiveEmptyPolls = 0
-                    verifyCurrentSession(usageStatsManager, now)
+                if (currentSession != null) {
+                    // Maintain current session — user is still using the same app.
+                    // Periodically verify the session is still valid
+                    if (consecutiveEmptyPolls >= EMPTY_POLLS_BEFORE_VERIFY) {
+                        consecutiveEmptyPolls = 0
+                        verifyCurrentSession(usageStatsManager, now)
+                    }
+                } else {
+                    // No session running — try to detect if a controlled app is already
+                    // in foreground (e.g., app was opened before monitoring started).
+                    // Use queryUsageStats as fallback to find the most recently used app.
+                    detectInitialForegroundApp(usageStatsManager, now)
                 }
             }
         } catch (e: Exception) {
@@ -244,6 +251,46 @@ class ForegroundUsageMonitor(
         } catch (e: Exception) {
             Log.e(TAG, "verifyCurrentSession failed", e)
             // Don't disrupt tracking on verification failure — just try again later
+        }
+    }
+
+    /**
+     * Detect the initial foreground app when no session exists.
+     * Uses queryUsageStats to find the most recently used app — catches apps
+     * that were already open before TimeBet's monitoring started (cold start).
+     */
+    private fun detectInitialForegroundApp(usageStatsManager: UsageStatsManager, now: Long) {
+        try {
+            val lookbackStart = now - 5_000 // Look back 5 seconds
+            val usageStats = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                lookbackStart,
+                now
+            )
+
+            var mostRecentPackage: String? = null
+            var mostRecentTime = 0L
+
+            for (stats in usageStats) {
+                if (stats.lastTimeUsed > mostRecentTime) {
+                    mostRecentTime = stats.lastTimeUsed
+                    mostRecentPackage = stats.packageName
+                }
+            }
+
+            // If the most recent app is controlled and was used in the last 5 seconds,
+            // start tracking it
+            if (mostRecentPackage != null &&
+                mostRecentPackage != context.packageName &&
+                mostRecentPackage in controlledPackages &&
+                (now - mostRecentTime) < 5_000
+            ) {
+                Log.d(TAG, "Initial detection: $mostRecentPackage is active (last used ${now - mostRecentTime}ms ago)")
+                handleForegroundChange(mostRecentPackage, mostRecentTime)
+                consecutiveEmptyPolls = 0
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Initial foreground detection failed", e)
         }
     }
 

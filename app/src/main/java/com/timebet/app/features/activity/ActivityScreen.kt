@@ -45,6 +45,7 @@ import java.time.format.DateTimeFormatter
 fun ActivityScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Screen Time", "Casino", "Sports", "History")
+    var refreshTrigger by remember { mutableIntStateOf(0) }
 
     // Wrap in Surface to force dark background across all nested Material components
     Surface(
@@ -53,14 +54,31 @@ fun ActivityScreen() {
         contentColor = TimeBetWhite
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-        // Header
-        Text(
-            "ACTIVITY",
-            style = TimeBetTypography.labelMedium,
-            color = TimeBetTextTertiary,
-            letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp),
-            modifier = Modifier.padding(start = 20.dp, top = 48.dp, bottom = 8.dp)
-        )
+        // Header with refresh
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "ACTIVITY",
+                style = TimeBetTypography.labelMedium,
+                color = TimeBetTextTertiary,
+                letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp),
+                modifier = Modifier.padding(start = 20.dp, top = 48.dp, bottom = 8.dp)
+            )
+            IconButton(
+                onClick = { refreshTrigger++ },
+                modifier = Modifier.padding(top = 40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Refresh,
+                    contentDescription = "Refresh",
+                    tint = TimeBetTextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
 
         // Custom tab buttons — full control over colors, no Material3 Tab interference
         Column {
@@ -109,9 +127,9 @@ fun ActivityScreen() {
         }
 
         when (selectedTab) {
-            0 -> ScreenTimeTab()
-            1 -> CasinoTab()
-            2 -> SportsTab()
+            0 -> ScreenTimeTab(refreshTrigger)
+            1 -> CasinoTab(refreshTrigger)
+            2 -> SportsTab(refreshTrigger)
             3 -> HistoryScreen()
         }
         } // Column
@@ -121,7 +139,7 @@ fun ActivityScreen() {
 // ─── Screen Time Tab ───
 
 @Composable
-private fun ScreenTimeTab() {
+private fun ScreenTimeTab(refreshKey: Int = 0) {
     var todayUsage by remember { mutableLongStateOf(0L) }
     var baseAllowance by remember { mutableLongStateOf(0L) }
     var currentBalance by remember { mutableLongStateOf(0L) }
@@ -131,7 +149,7 @@ private fun ScreenTimeTab() {
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var controlledApps by remember { mutableStateOf<List<com.timebet.app.core.database.entity.ControlledAppEntity>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
         ServiceLocator.timeBankRepository.observeBalance().collectLatest { state ->
             state?.let {
                 todayUsage = it.usedSeconds
@@ -351,12 +369,12 @@ private fun ScreenTimeTab() {
 // ─── Casino Tab ───
 
 @Composable
-private fun CasinoTab() {
+private fun CasinoTab(refreshKey: Int = 0) {
     var stats by remember { mutableStateOf<CasinoDayStats?>(null) }
     var recentRounds by remember { mutableStateOf<List<CasinoRoundEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
         try {
             val now = System.currentTimeMillis()
             val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -511,11 +529,11 @@ private fun CasinoTab() {
 // ─── Sports Tab ───
 
 @Composable
-private fun SportsTab() {
+private fun SportsTab(refreshKey: Int = 0) {
     var predictions by remember { mutableStateOf<List<SportsPredictionEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
         try {
             ServiceLocator.timeBankRepository.observeActivePredictions().collectLatest { preds ->
                 predictions = preds
