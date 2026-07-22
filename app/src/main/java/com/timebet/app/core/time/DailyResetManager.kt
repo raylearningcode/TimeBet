@@ -7,6 +7,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.timebet.app.core.database.dao.SportsPredictionDao
 import com.timebet.app.core.database.entity.PredictionStatus
+import com.timebet.app.workers.DailyAggregationWorker
 import com.timebet.app.workers.DailyResetWorker
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -52,6 +53,20 @@ class DailyResetManager(
             RESET_WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             resetWork
+        )
+
+        // Schedule daily aggregation (saves usage history, cleans old data)
+        val aggregationWork = PeriodicWorkRequestBuilder<DailyAggregationWorker>(
+            repeatInterval = 24, TimeUnit.HOURS,
+            flexTimeInterval = 30, TimeUnit.MINUTES
+        )
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "daily_aggregation",
+            ExistingPeriodicWorkPolicy.KEEP,
+            aggregationWork
         )
     }
 

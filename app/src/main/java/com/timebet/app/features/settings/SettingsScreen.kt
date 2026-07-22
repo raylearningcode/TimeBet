@@ -1,5 +1,6 @@
 package com.timebet.app.features.settings
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +43,18 @@ fun SettingsScreen(
     var showAllowanceDialog by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingAllowance by remember { mutableLongStateOf(TimeBetConstants.DEFAULT_BASE_ALLOWANCE_SECONDS) }
+
+    val context = LocalContext.current
+    val syncStatusText = remember {
+        context.getSharedPreferences("timebet_sync", Context.MODE_PRIVATE)
+            .getString("last_sync_time", null)?.let {
+                try {
+                    val instant = java.time.Instant.parse(it)
+                    val mins = java.time.Duration.between(instant, java.time.Instant.now()).toMinutes()
+                    when { mins < 1 -> "Just now"; mins < 60 -> "${mins}m ago"; else -> "${mins / 60}h ago" }
+                } catch (_: Exception) { "Synced" }
+            } ?: "Not synced yet"
+    }
 
     LaunchedEffect(Unit) {
         ServiceLocator.timeBankRepository.observeSettings().collect { s ->
@@ -147,6 +161,7 @@ fun SettingsScreen(
                 val state = authState.value
                 if (state is com.timebet.app.core.auth.AuthState.Authenticated) {
                     SettingsRow(label = "Signed in as", value = state.email)
+                    SettingsRow(label = "Last synced", value = syncStatusText)
                     // Devices — navigate to device list
                     Row(
                         modifier = Modifier

@@ -38,4 +38,19 @@ interface DailyUsageAggregateDao {
         WHERE date >= :fromDate AND date <= :toDate
     """)
     suspend fun getTotalUsage(fromDate: String, toDate: String): Long
+
+    @Query("DELETE FROM daily_usage_aggregates WHERE date < :cutoffDate")
+    suspend fun deleteOlderThan(cutoffDate: String)
+
+    @Query("""
+        SELECT date, SUM(usageSeconds) as totalSeconds
+        FROM daily_usage_aggregates
+        GROUP BY date ORDER BY date DESC LIMIT :limit
+    """)
+    suspend fun getDailyTotals(limit: Int = 30): List<DailyTotal>
 }
+
+data class DailyTotal(
+    val date: String,
+    val totalSeconds: Long
+)

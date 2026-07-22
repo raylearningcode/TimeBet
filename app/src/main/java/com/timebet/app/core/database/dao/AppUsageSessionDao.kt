@@ -73,6 +73,9 @@ interface AppUsageSessionDao {
 
     @Query("UPDATE app_usage_sessions SET syncStatus = 'synced' WHERE id = :id")
     suspend fun markSynced(id: Long)
+
+    @Query("DELETE FROM app_usage_sessions WHERE startedAt < :cutoffMillis")
+    suspend fun deleteOlderThan(cutoffMillis: Long)
 }
 
 data class AppUsageBreakdown(

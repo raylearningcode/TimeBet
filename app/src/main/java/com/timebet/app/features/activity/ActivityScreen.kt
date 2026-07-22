@@ -44,7 +44,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ActivityScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Screen Time", "Casino", "Sports")
+    val tabs = listOf("Screen Time", "Casino", "Sports", "History")
 
     // Wrap in Surface to force dark background across all nested Material components
     Surface(
@@ -112,6 +112,7 @@ fun ActivityScreen() {
             0 -> ScreenTimeTab()
             1 -> CasinoTab()
             2 -> SportsTab()
+            3 -> HistoryScreen()
         }
         } // Column
     } // Surface
