@@ -114,21 +114,32 @@ class AuthManager(private val context: Context) {
             if (data == null) return@withContext AuthResult.Error("No sign-in data received")
 
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            // Add timeout — getResult can hang on some devices
-            val account = withTimeout(15000L) { task.getResult(Exception::class.java) }
+            val account = try {
+                withTimeout(15000L) { task.getResult(com.google.android.gms.common.api.ApiException::class.java) }
+            } catch (apiEx: com.google.android.gms.common.api.ApiException) {
+                val msg = when (apiEx.statusCode) {
+                    12500 -> "Google Sign-In failed. Check: 1) SHA-1 fingerprint registered in Google Cloud 2) OAuth consent screen published"
+                    12501 -> "Sign-in cancelled"
+                    10 -> "Developer error — SHA-1 or package name mismatch in Google Cloud Console"
+                    7 -> "Network error — check internet connection"
+                    8 -> "Google internal error — try again"
+                    else -> "Google sign-in error (code: ${apiEx.statusCode})"
+                }
+                Log.e(TAG, "ApiException: ${apiEx.statusCode}", apiEx)
+                return@withContext AuthResult.Error(msg)
+            }
             val idToken = account?.idToken
             if (idToken == null) {
-                Log.e(TAG, "No ID token — account: ${account?.email}, serverClientId configured: ${BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotEmpty()}")
-                return@withContext AuthResult.Error("Google sign-in incomplete. Make sure Google Cloud OAuth is configured.")
+                Log.e(TAG, "No ID token. Web client ID: ${BuildConfig.GOOGLE_WEB_CLIENT_ID.take(20)}...")
+                return@withContext AuthResult.Error("Google sign-in incomplete. Check OAuth consent screen is Published.")
             }
 
             // Exchange Google ID token for Supabase session
             val session = exchangeTokenWithSupabase(idToken)
             if (session == null) {
-                return@withContext AuthResult.Error("Could not connect to server. Check your internet connection.")
+                return@withContext AuthResult.Error("Server connection failed. Check internet.")
             }
 
-            // Store session
             storeSession(session, account.email ?: "", account.displayName ?: "")
 
             _authState.value = AuthState.Authenticated(
