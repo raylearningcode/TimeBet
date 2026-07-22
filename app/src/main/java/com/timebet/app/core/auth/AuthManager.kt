@@ -1,16 +1,11 @@
 package com.timebet.app.core.auth
 
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.util.Log
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.timebet.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -22,14 +17,14 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Handles Google Sign-In and Supabase Auth token exchange.
+ * Handles email/password authentication via Supabase Auth REST API.
  *
  * Flow:
- * 1. User taps "Sign in with Google" → GoogleSignInClient.getSignInIntent()
- * 2. On result: extract Google ID token
- * 3. Exchange ID token with Supabase Auth REST API for Supabase session
- * 4. Store session (access_token, refresh_token, user_id) in DataStore
- * 5. All subsequent SyncEngine requests use the access_token
+ * 1. User enters email + password
+ * 2. Sign up (if new) or sign in (if returning)
+ * 3. Supabase returns access_token + refresh_token + user_id
+ * 4. Store session locally
+ * 5. All SyncEngine requests use the access_token
  */
 class AuthManager(private val context: Context) {
 
@@ -40,7 +35,6 @@ class AuthManager(private val context: Context) {
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_EMAIL = "email"
-        private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DEVICE_NAME = "device_name"
     }
@@ -55,14 +49,14 @@ class AuthManager(private val context: Context) {
         }
     }
 
-    /** Auto-detected device name from Build.MODEL, user can customize */
+    val deviceIdVal: String get() = deviceId
+
     val deviceName: String
-        get() = prefs.getString(KEY_DEVICE_NAME, null)
-            ?: run {
-                val autoName = Build.MODEL ?: "Android Device"
-                prefs.edit().putString(KEY_DEVICE_NAME, autoName).apply()
-                autoName
-            }
+        get() = prefs.getString(KEY_DEVICE_NAME, null) ?: run {
+            val autoName = Build.MODEL ?: "Android Device"
+            prefs.edit().putString(KEY_DEVICE_NAME, autoName).apply()
+            autoName
+        }
 
     fun setDeviceName(name: String) {
         prefs.edit().putString(KEY_DEVICE_NAME, name).apply()
@@ -71,141 +65,76 @@ class AuthManager(private val context: Context) {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    private val googleSignInClient: GoogleSignInClient by lazy {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-            .requestServerAuthCode(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-            .requestEmail()
-            .build()
-        GoogleSignIn.getClient(context, gso)
-    }
-
     init {
-        // Check for existing session on startup
         val token = getAccessToken()
         if (token != null) {
             _authState.value = AuthState.Authenticated(
                 userId = getUserId() ?: "",
                 email = getEmail() ?: "",
-                displayName = getDisplayName()
+                displayName = getEmail()
             )
         } else {
             _authState.value = AuthState.Unauthenticated
         }
     }
 
-    val deviceIdVal: String get() = deviceId
-
-    fun getSignInIntent(): Intent = googleSignInClient.signInIntent
-
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
-
     fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
-
     fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
 
-    fun getDisplayName(): String? = prefs.getString(KEY_DISPLAY_NAME, null)
-
     /**
-     * Handle the result from Google Sign-In activity.
-     * Extracts the ID token and exchanges it for a Supabase session.
+     * Sign up a new user with email + password.
      */
-    suspend fun handleSignInResult(data: Intent?): AuthResult = withContext(Dispatchers.IO) {
+    suspend fun signUp(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         try {
-            if (data == null) return@withContext AuthResult.Error("No sign-in data received")
+            if (password.length < 6) return@withContext AuthResult.Error("Password must be at least 6 characters")
 
-            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            val account = try {
-                withTimeout(15000L) { task.getResult(com.google.android.gms.common.api.ApiException::class.java) }
-            } catch (apiEx: com.google.android.gms.common.api.ApiException) {
-                val msg = when (apiEx.statusCode) {
-                    12500 -> "Google Sign-In failed. Check: 1) SHA-1 fingerprint registered in Google Cloud 2) OAuth consent screen published"
-                    12501 -> "Sign-in cancelled"
-                    10 -> "Developer error — SHA-1 or package name mismatch in Google Cloud Console"
-                    7 -> "Network error — check internet connection"
-                    8 -> "Google internal error — try again"
-                    else -> "Google sign-in error (code: ${apiEx.statusCode})"
-                }
-                Log.e(TAG, "ApiException: ${apiEx.statusCode}", apiEx)
-                return@withContext AuthResult.Error(msg)
-            }
-            val idToken = account?.idToken
-            if (idToken == null) {
-                Log.e(TAG, "No ID token. Web client ID: ${BuildConfig.GOOGLE_WEB_CLIENT_ID.take(20)}...")
-                return@withContext AuthResult.Error("Google sign-in incomplete. Check OAuth consent screen is Published.")
+            val url = URL("${BuildConfig.SUPABASE_URL}/auth/v1/signup")
+            val body = JSONObject().apply {
+                put("email", email)
+                put("password", password)
             }
 
-            // Exchange Google ID token for Supabase session
-            val session = exchangeTokenWithSupabase(idToken)
-            if (session == null) {
-                return@withContext AuthResult.Error("Server connection failed. Check internet.")
-            }
+            val response = post(url, body)
+            if (response == null) return@withContext AuthResult.Error("Sign up failed. Check your connection.")
 
-            storeSession(session, account.email ?: "", account.displayName ?: "")
-
+            storeSession(response, email)
             _authState.value = AuthState.Authenticated(
-                userId = session.userId,
-                email = account.email ?: "",
-                displayName = account.displayName
+                userId = getUserId() ?: "",
+                email = email,
+                displayName = email
             )
-
             AuthResult.Success
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            Log.e(TAG, "Sign-in timed out")
-            AuthResult.Error("Sign-in timed out. Try again.")
         } catch (e: Exception) {
-            Log.e(TAG, "Sign-in failed", e)
-            AuthResult.Error(e.message ?: "Sign-in failed")
+            Log.e(TAG, "Sign up failed", e)
+            AuthResult.Error(e.message ?: "Sign up failed")
         }
     }
 
     /**
-     * Exchange a Google ID token for a Supabase access token.
-     * POST to Supabase Auth endpoint: /auth/v1/token?grant_type=id_token
+     * Sign in an existing user with email + password.
      */
-    private suspend fun exchangeTokenWithSupabase(idToken: String): SupabaseSession? {
+    suspend fun signIn(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         try {
-            val url = URL("${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=id_token")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("apikey", BuildConfig.SUPABASE_ANON_KEY)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 10000
-            conn.readTimeout = 10000
-
+            val url = URL("${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=password")
             val body = JSONObject().apply {
-                put("id_token", idToken)
-                put("provider", "google")
+                put("email", email)
+                put("password", password)
             }
 
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(body.toString())
-            writer.flush()
-            writer.close()
+            val response = post(url, body)
+            if (response == null) return@withContext AuthResult.Error("Invalid email or password")
 
-            val code = conn.responseCode
-            if (code !in 200..299) {
-                val errorBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { "unknown" }
-                Log.e(TAG, "Supabase token exchange failed: HTTP $code, body: $errorBody")
-                conn.disconnect()
-                return null
-            }
-
-            val reader = BufferedReader(InputStreamReader(conn.inputStream))
-            val responseBody = reader.readText()
-            reader.close()
-            conn.disconnect()
-
-            val json = JSONObject(responseBody)
-            return SupabaseSession(
-                accessToken = json.getString("access_token"),
-                refreshToken = json.optString("refresh_token", ""),
-                userId = json.getJSONObject("user").getString("id")
+            storeSession(response, email)
+            _authState.value = AuthState.Authenticated(
+                userId = getUserId() ?: "",
+                email = email,
+                displayName = email
             )
+            AuthResult.Success
         } catch (e: Exception) {
-            Log.e(TAG, "Token exchange error", e)
-            return null
+            Log.e(TAG, "Sign in failed", e)
+            AuthResult.Error("Invalid email or password")
         }
     }
 
@@ -216,35 +145,10 @@ class AuthManager(private val context: Context) {
         val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null) ?: return@withContext false
         try {
             val url = URL("${BuildConfig.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("apikey", BuildConfig.SUPABASE_ANON_KEY)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 10000
-            conn.readTimeout = 10000
+            val body = JSONObject().apply { put("refresh_token", refreshToken) }
+            val response = post(url, body) ?: return@withContext false
 
-            val body = JSONObject().apply {
-                put("refresh_token", refreshToken)
-            }
-
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(body.toString())
-            writer.flush()
-            writer.close()
-
-            val code = conn.responseCode
-            if (code !in 200..299) {
-                conn.disconnect()
-                return@withContext false
-            }
-
-            val reader = BufferedReader(InputStreamReader(conn.inputStream))
-            val responseBody = reader.readText()
-            reader.close()
-            conn.disconnect()
-
-            val json = JSONObject(responseBody)
+            val json = JSONObject(response)
             prefs.edit()
                 .putString(KEY_ACCESS_TOKEN, json.getString("access_token"))
                 .putString(KEY_REFRESH_TOKEN, json.optString("refresh_token", refreshToken))
@@ -257,32 +161,55 @@ class AuthManager(private val context: Context) {
     }
 
     fun signOut() {
-        googleSignInClient.signOut()
         prefs.edit()
             .remove(KEY_ACCESS_TOKEN)
             .remove(KEY_REFRESH_TOKEN)
             .remove(KEY_USER_ID)
             .remove(KEY_EMAIL)
-            .remove(KEY_DISPLAY_NAME)
             .apply()
         _authState.value = AuthState.Unauthenticated
     }
 
-    private fun storeSession(session: SupabaseSession, email: String, displayName: String) {
+    // ─── Private helpers ───
+
+    private fun storeSession(responseBody: String, email: String) {
+        val json = JSONObject(responseBody)
         prefs.edit()
-            .putString(KEY_ACCESS_TOKEN, session.accessToken)
-            .putString(KEY_REFRESH_TOKEN, session.refreshToken)
-            .putString(KEY_USER_ID, session.userId)
+            .putString(KEY_ACCESS_TOKEN, json.getString("access_token"))
+            .putString(KEY_REFRESH_TOKEN, json.optString("refresh_token", ""))
+            .putString(KEY_USER_ID, json.getJSONObject("user").getString("id"))
             .putString(KEY_EMAIL, email)
-            .putString(KEY_DISPLAY_NAME, displayName)
             .apply()
     }
 
-    private data class SupabaseSession(
-        val accessToken: String,
-        val refreshToken: String,
-        val userId: String
-    )
+    private fun post(url: URL, jsonBody: JSONObject): String? {
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("apikey", BuildConfig.SUPABASE_ANON_KEY)
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.doOutput = true
+        conn.connectTimeout = 15000
+        conn.readTimeout = 15000
+
+        val writer = OutputStreamWriter(conn.outputStream)
+        writer.write(jsonBody.toString())
+        writer.flush()
+        writer.close()
+
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val errorBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { "" }
+            Log.e(TAG, "Auth request failed: HTTP $code — $errorBody")
+            conn.disconnect()
+            return null
+        }
+
+        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+        val body = reader.readText()
+        reader.close()
+        conn.disconnect()
+        return body
+    }
 }
 
 sealed class AuthState {

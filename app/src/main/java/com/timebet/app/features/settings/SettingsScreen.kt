@@ -158,7 +158,7 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = TimeBetWhite, contentColor = TimeBetBlack)
                     ) {
-                        Text("Sign in with Google", style = TimeBetTypography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Sign In", style = TimeBetTypography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
