@@ -153,7 +153,10 @@ class AuthManager(private val context: Context) {
 
             val body = JSONObject().apply {
                 put("id_token", idToken)
-                put("access_token", idToken)
+                put("provider", "google")
+                put("gotrue_meta_security", JSONObject().apply {
+                    put("access_token", idToken)
+                })
             }
 
             val writer = OutputStreamWriter(conn.outputStream)
@@ -163,7 +166,8 @@ class AuthManager(private val context: Context) {
 
             val code = conn.responseCode
             if (code !in 200..299) {
-                Log.e(TAG, "Supabase token exchange failed: HTTP $code")
+                val errorBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { "unknown" }
+                Log.e(TAG, "Supabase token exchange failed: HTTP $code, body: $errorBody")
                 conn.disconnect()
                 return null
             }
