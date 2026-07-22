@@ -183,7 +183,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     when {
-                        !isMonitoring -> "Monitoring paused — check Usage Access permission"
+                        !isMonitoring -> "Monitoring paused — check Usage Access"
                         activeApp is ActiveAppState.Active -> {
                             val active = activeApp as ActiveAppState.Active
                             val appName = controlledApps.find { it.packageName == active.packageName }?.appName
@@ -193,8 +193,24 @@ fun HomeScreen(
                         else -> "Monitoring active — waiting for app usage"
                     },
                     style = TimeBetTypography.labelSmall,
-                    color = if (isMonitoring) TimeBetGreen else TimeBetRed
+                    color = if (isMonitoring) TimeBetGreen else TimeBetRed,
+                    modifier = Modifier.weight(1f)
                 )
+                if (!isMonitoring) {
+                    TextButton(onClick = {
+                        val hasPermission = ServiceLocator.permissionMonitor.hasUsageStatsPermission()
+                        if (hasPermission) {
+                            // Permission granted but monitor not running — restart
+                            val intent = android.content.Intent(context, com.timebet.app.services.TimeBetForegroundService::class.java)
+                            context.startForegroundService(intent)
+                        } else {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    }) {
+                        Text("Fix", style = TimeBetTypography.labelSmall, color = TimeBetWhite)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
