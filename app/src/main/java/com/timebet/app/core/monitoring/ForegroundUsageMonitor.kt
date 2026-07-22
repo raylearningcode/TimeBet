@@ -142,6 +142,15 @@ class ForegroundUsageMonitor(
 
             lastCheckTime = now
 
+            // If no event-based detection, fall back to queryUsageStats (more reliable on some devices)
+            if (foregroundPackage == null) {
+                val statsPackage = getMostRecentPackage(usageStatsManager, now)
+                if (statsPackage != null && statsPackage != context.packageName) {
+                    foregroundPackage = statsPackage
+                    eventTime = now
+                }
+            }
+
             if (foregroundPackage != null) {
                 if (foregroundPackage == context.packageName) {
                     // User switched to TimeBet itself — end any active controlled-app session
@@ -255,42 +264,42 @@ class ForegroundUsageMonitor(
     }
 
     /**
-     * Detect the initial foreground app when no session exists.
-     * Uses queryUsageStats to find the most recently used app — catches apps
-     * that were already open before TimeBet's monitoring started (cold start).
+     * Find the most recently used app via queryUsageStats.
+     * More reliable than queryEvents on some OEM devices.
+     * Returns the package name if it was used within the last 3 seconds.
      */
-    private fun detectInitialForegroundApp(usageStatsManager: UsageStatsManager, now: Long) {
+    private fun getMostRecentPackage(usageStatsManager: UsageStatsManager, now: Long): String? {
         try {
-            val lookbackStart = now - 5_000 // Look back 5 seconds
             val usageStats = usageStatsManager.queryUsageStats(
                 UsageStatsManager.INTERVAL_DAILY,
-                lookbackStart,
+                now - 3000,
                 now
             )
-
             var mostRecentPackage: String? = null
             var mostRecentTime = 0L
-
             for (stats in usageStats) {
                 if (stats.lastTimeUsed > mostRecentTime) {
                     mostRecentTime = stats.lastTimeUsed
                     mostRecentPackage = stats.packageName
                 }
             }
+            return if (mostRecentPackage != null && (now - mostRecentTime) < 3000) {
+                mostRecentPackage
+            } else null
+        } catch (_: Exception) { return null }
+    }
 
-            // If the most recent app is controlled and was used in the last 5 seconds,
-            // start tracking it
-            if (mostRecentPackage != null &&
-                mostRecentPackage != context.packageName &&
-                mostRecentPackage in controlledPackages &&
-                (now - mostRecentTime) < 5_000
-            ) {
-                Log.d(TAG, "Initial detection: $mostRecentPackage is active (last used ${now - mostRecentTime}ms ago)")
-                handleForegroundChange(mostRecentPackage, mostRecentTime)
-                consecutiveEmptyPolls = 0
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Initial foreground detection failed", e)
+    /**
+     * Detect the initial foreground app when no session exists.
+     * Uses queryUsageStats to find the most recently used app — catches apps
+     * that were already open before TimeBet's monitoring started (cold start).
+     */
+    private fun detectInitialForegroundApp(usageStatsManager: UsageStatsManager, now: Long) {
+        val pkg = getMostRecentPackage(usageStatsManager, now)
+        if (pkg != null && pkg != context.packageName && pkg in controlledPackages) {
+            Log.d(TAG, "Initial detection: $pkg is active")
+            handleForegroundChange(pkg, now)
+            consecutiveEmptyPolls = 0
         }
     }
 
