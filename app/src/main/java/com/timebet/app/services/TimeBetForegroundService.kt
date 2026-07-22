@@ -8,14 +8,12 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.timebet.app.MainActivity
-import com.timebet.app.R
-import com.timebet.app.TimeBetApp
+import com.timebet.app.ServiceLocator
 import com.timebet.app.core.blocking.AppBlockController
 import com.timebet.app.core.monitoring.ForegroundUsageMonitor
+import com.timebet.app.core.time.TimeBankEngine
 import com.timebet.app.core.notifications.NotificationChannels
 import com.timebet.app.core.notifications.NotificationIds
-import com.timebet.app.core.permissions.PermissionHealthMonitor
-import com.timebet.app.core.time.TimeBankEngine
 import com.timebet.app.util.TimeBetConstants
 import com.timebet.app.util.TimeFormatter
 import kotlinx.coroutines.*
@@ -42,44 +40,23 @@ class TimeBetForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        val database = TimeBetApp.instance.database
+        timeBankEngine = ServiceLocator.timeBankEngine
+        usageMonitor = ServiceLocator.usageMonitor
+        blockController = ServiceLocator.blockController
 
-        timeBankEngine = TimeBankEngine(
-            dailyTimeBankDao = database.dailyTimeBankDao()
-        ) {
-            database.userSettingsDao().get()?.baseDailyAllowanceSeconds
-                ?: TimeBetConstants.DEFAULT_BASE_ALLOWANCE_SECONDS
+        // Wire up callbacks that the service needs
+        usageMonitor.onBalanceChanged = { newBalance ->
+            checkLowTimeThresholds(newBalance)
         }
-
-        val permissionMonitor = PermissionHealthMonitor(this)
-
-        usageMonitor = ForegroundUsageMonitor(
-            context = this,
-            controlledAppDao = database.controlledAppDao(),
-            appUsageSessionDao = database.appUsageSessionDao(),
-            timeBankEngine = timeBankEngine,
-            permissionMonitor = permissionMonitor,
-            onBalanceChanged = { newBalance ->
-                checkLowTimeThresholds(newBalance)
-            },
-            onTrackingFailed = {
-                postTrackingFailure()
-            }
-        )
-
-        blockController = AppBlockController(
-            context = this,
-            timeBankEngine = timeBankEngine
-        )
+        usageMonitor.onTrackingFailed = {
+            postTrackingFailure()
+        }
 
         // Recover any unsettled casino rounds from a previous crash
         serviceScope.launch {
             try {
-                val repo = com.timebet.app.ServiceLocator.timeBankRepository
-                repo.recoverUnsettledRounds()
-            } catch (_: Exception) {
-                // Recovery is best-effort
-            }
+                ServiceLocator.timeBankRepository.recoverUnsettledRounds()
+            } catch (_: Exception) { }
         }
     }
 

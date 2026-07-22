@@ -31,9 +31,7 @@ class ForegroundUsageMonitor(
     private val controlledAppDao: ControlledAppDao,
     private val appUsageSessionDao: AppUsageSessionDao,
     private val timeBankEngine: TimeBankEngine,
-    private val permissionMonitor: PermissionHealthMonitor,
-    private val onBalanceChanged: ((Long) -> Unit)? = null,
-    private val onTrackingFailed: (() -> Unit)? = null
+    private val permissionMonitor: PermissionHealthMonitor
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val handler = Handler(Looper.getMainLooper())
@@ -43,6 +41,10 @@ class ForegroundUsageMonitor(
 
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring.asStateFlow()
+
+    // Mutable callbacks — set by the service after construction
+    var onBalanceChanged: ((Long) -> Unit)? = null
+    var onTrackingFailed: (() -> Unit)? = null
 
     private var currentSession: ActiveSession? = null
     private val controlledPackages = mutableSetOf<String>()
