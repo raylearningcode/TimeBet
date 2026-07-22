@@ -820,71 +820,60 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
 
         when (phase) {
             "betting" -> {
-                // ── Stake-style betting table ──
-                // Row: 0 at top
-                Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.Center) {
-                    val isSel = selectedNumber == 0
-                    Box(
-                        modifier = Modifier.weight(1f).padding(1.dp).height(32.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSel) TimeBetWhite else TimeBetGreen.copy(alpha = 0.6f))
-                            .clickable { selectedNumber = 0; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 },
-                        contentAlignment = Alignment.Center
-                    ) { Text("0", style = TimeBetTypography.labelSmall, color = if (isSel) TimeBetBlack else TimeBetWhite) }
-                }
-                // Numbers grid: European layout (3 cols, 12 rows)
-                val grid = listOf(
-                    listOf(3,6,9,12,15,18,21,24,27,30,33,36),
-                    listOf(2,5,8,11,14,17,20,23,26,29,32,35),
-                    listOf(1,4,7,10,13,16,19,22,25,28,31,34)
-                )
+                // ── Simple betting board ──
+                // Number grid: compact 6-col grid
+                Text("Pick a number or tap a bet below", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                Spacer(Modifier.height(6.dp))
                 val reds = ServiceLocator.rouletteEngine.redNumbers
-                for (row in 0 until 12) {
-                    Row(Modifier.fillMaxWidth()) {
-                        grid.forEach { col ->
-                            val num = col[row]; val isRed = num in reds; val sel = selectedNumber == num
-                            Box(Modifier.weight(1f).padding(1.dp).height(30.dp).clip(RoundedCornerShape(3.dp))
-                                .background(when { sel -> TimeBetWhite; isRed -> TimeBetRed.copy(alpha=0.45f); else -> Color(0xFF1A1A2E) })
-                                .clickable { selectedNumber = num; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 },
-                                contentAlignment = Alignment.Center
-                            ) { Text("$num", style=TimeBetTypography.labelSmall, color=if(sel) TimeBetBlack else TimeBetWhite) }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                // Outside bets
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    listOf("1st 12" to 1, "2nd 12" to 2, "3rd 12" to 3).forEach { (l, d) ->
-                        Box(Modifier.weight(1f).height(30.dp).clip(RoundedCornerShape(4.dp))
-                            .background(if(selectedDozen==d) TimeBetWhite else TimeBetSurfaceElevated)
-                            .clickable { selectedDozen=d; selectedBetType=BetType.DOZEN; selectedNumber=-1; selectedColumn=-1 },
+                LazyVerticalGrid(columns = GridCells.Fixed(6), modifier = Modifier.height(140.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items((0..36).toList()) { num ->
+                        val isRed = num in reds; val isZero = num == 0; val sel = selectedNumber == num
+                        Box(
+                            Modifier.clip(RoundedCornerShape(4.dp))
+                                .background(when { sel -> TimeBetWhite; isZero -> TimeBetGreen.copy(alpha=0.6f); isRed -> TimeBetRed.copy(alpha=0.4f); else -> Color(0xFF1A1A2E) })
+                                .clickable { selectedNumber = num; selectedBetType = BetType.STRAIGHT; selectedDozen = -1; selectedColumn = -1 }
+                                .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedDozen==d) TimeBetBlack else TimeBetWhite) }
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    listOf("1-18" to BetType.LOW, "EVEN" to BetType.EVEN, "RED" to BetType.RED,
-                        "BLACK" to BetType.BLACK, "ODD" to BetType.ODD, "19-36" to BetType.HIGH
-                    ).forEach { (l, bt) ->
-                        Box(Modifier.weight(1f).height(32.dp).clip(RoundedCornerShape(4.dp))
-                            .background(when { selectedBetType==bt -> TimeBetWhite; l=="RED" -> TimeBetRed.copy(alpha=0.35f); else -> TimeBetSurfaceElevated })
-                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
-                            contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    listOf("Col 1" to 1, "Col 2" to 2, "Col 3" to 3).forEach { (l, c) ->
-                        Box(Modifier.weight(1f).height(26.dp).clip(RoundedCornerShape(4.dp))
-                            .background(if(selectedColumn==c) TimeBetWhite else TimeBetSurfaceElevated)
-                            .clickable { selectedColumn=c; selectedBetType=BetType.COLUMN; selectedNumber=-1; selectedDozen=-1 },
-                            contentAlignment = Alignment.Center
-                        ) { Text(l, style=TimeBetTypography.labelSmall.copy(fontSize=10.sp), color=if(selectedColumn==c) TimeBetBlack else TimeBetTextSecondary) }
+                        ) { Text("$num", style=TimeBetTypography.labelSmall, color=if(sel) TimeBetBlack else TimeBetWhite) }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                // Popular bets — big colorful buttons
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("RED" to (BetType.RED to TimeBetRed), "BLACK" to (BetType.BLACK to Color(0xFF1A1A2E))
+                    ).forEach { (l, p) ->
+                        val bt = p.first; val bg = p.second
+                        Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp))
+                            .background(if(selectedBetType==bt) TimeBetWhite else bg)
+                            .border(1.dp, if(selectedBetType==bt) TimeBetWhite else TimeBetBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelLarge, fontWeight=FontWeight.Bold, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("1-18" to BetType.LOW, "EVEN" to BetType.EVEN, "ODD" to BetType.ODD, "19-36" to BetType.HIGH
+                    ).forEach { (l, bt) ->
+                        Box(Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(8.dp))
+                            .background(if(selectedBetType==bt) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { selectedBetType=bt; selectedNumber=-1; selectedDozen=-1; selectedColumn=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelSmall, fontWeight=FontWeight.Medium, color=if(selectedBetType==bt) TimeBetBlack else TimeBetWhite) }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("1st 12" to 1, "2nd 12" to 2, "3rd 12" to 3).forEach { (l, d) ->
+                        Box(Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(6.dp))
+                            .background(if(selectedDozen==d) TimeBetWhite else TimeBetSurfaceElevated)
+                            .clickable { selectedDozen=d; selectedBetType=BetType.DOZEN; selectedNumber=-1; selectedColumn=-1 },
+                            contentAlignment = Alignment.Center
+                        ) { Text(l, style=TimeBetTypography.labelSmall, color=if(selectedDozen==d) TimeBetBlack else TimeBetTextSecondary) }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
                 InlineStakeSelector(balance = balance, stake = stakeSeconds, onStakeChange = { stakeSeconds = it })
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { spin() },
