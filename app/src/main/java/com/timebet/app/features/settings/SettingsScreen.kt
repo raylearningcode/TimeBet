@@ -165,7 +165,7 @@ fun SettingsScreen(
 
             // ── About ──
             SettingsSection("About") {
-                SettingsRow(label = "Version", value = "1.0.0")
+                SettingsRow(label = "Version", value = "1.0.2")
                 SettingsRow(label = "Risk time. Not money.", value = "")
             }
 
