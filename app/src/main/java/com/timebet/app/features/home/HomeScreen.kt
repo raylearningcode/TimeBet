@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -55,7 +56,8 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var bankState by remember { mutableStateOf<DailyTimeBankState?>(null) }
-    var activeApp by remember { mutableStateOf<ActiveAppState>(ActiveAppState.None) }
+    val activeApp by ServiceLocator.usageMonitor.activeApp.collectAsState()
+    val isMonitoring by ServiceLocator.usageMonitor.isMonitoring.collectAsState()
     var controlledApps by remember { mutableStateOf<List<ControlledAppEntity>>(emptyList()) }
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
@@ -69,11 +71,6 @@ fun HomeScreen(
         launch {
             ServiceLocator.timeBankRepository.observeBalance().collectLatest { state ->
                 bankState = state
-            }
-        }
-        launch {
-            ServiceLocator.usageMonitor.activeApp.collectLatest { state ->
-                activeApp = state
             }
         }
         launch {
@@ -166,7 +163,41 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            // Monitoring status indicator
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(TimeBetSurfaceElevated)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Status dot
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (isMonitoring) TimeBetGreen else TimeBetRed)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    when {
+                        !isMonitoring -> "Monitoring paused — check Usage Access permission"
+                        activeApp is ActiveAppState.Active -> {
+                            val active = activeApp as ActiveAppState.Active
+                            val appName = controlledApps.find { it.packageName == active.packageName }?.appName
+                                ?: active.packageName
+                            "Tracking: $appName"
+                        }
+                        else -> "Monitoring active — waiting for app usage"
+                    },
+                    style = TimeBetTypography.labelSmall,
+                    color = if (isMonitoring) TimeBetGreen else TimeBetRed
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Main Balance Display
             val balance = bankState?.currentBalanceSeconds ?: 0

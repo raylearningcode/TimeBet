@@ -322,21 +322,14 @@ private fun AppListItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // App name + package
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                app.appName,
-                style = TimeBetTypography.bodyLarge,
-                color = if (isControlled) TimeBetGreen else TimeBetWhite,
-                fontWeight = if (isControlled) FontWeight.SemiBold else FontWeight.Normal
-            )
-            Text(
-                app.packageName,
-                style = TimeBetTypography.labelSmall,
-                color = TimeBetTextTertiary,
-                maxLines = 1
-            )
-        }
+        // App name only
+        Text(
+            app.appName,
+            style = TimeBetTypography.bodyLarge,
+            color = if (isControlled) TimeBetGreen else TimeBetWhite,
+            fontWeight = if (isControlled) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f)
+        )
 
         Spacer(modifier = Modifier.width(8.dp))
 
