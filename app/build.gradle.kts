@@ -20,6 +20,7 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("supabase.url") ?: "https://example.supabase.co"}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("supabase.anonKey") ?: "your-anon-key"}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${project.findProperty("google.web.client.id") ?: ""}\"")
     }
 
     buildTypes {

@@ -2,6 +2,7 @@ package com.timebet.app.core.auth
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -40,9 +41,11 @@ class AuthManager(private val context: Context) {
         private const val KEY_EMAIL = "email"
         private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_DEVICE_ID = "device_id"
+        private const val KEY_DEVICE_NAME = "device_name"
     }
 
     private val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
     private val deviceId: String by lazy {
         prefs.getString(KEY_DEVICE_ID, null) ?: run {
             val id = java.util.UUID.randomUUID().toString()
@@ -51,12 +54,25 @@ class AuthManager(private val context: Context) {
         }
     }
 
+    /** Auto-detected device name from Build.MODEL, user can customize */
+    val deviceName: String
+        get() = prefs.getString(KEY_DEVICE_NAME, null)
+            ?: run {
+                val autoName = Build.MODEL ?: "Android Device"
+                prefs.edit().putString(KEY_DEVICE_NAME, autoName).apply()
+                autoName
+            }
+
+    fun setDeviceName(name: String) {
+        prefs.edit().putString(KEY_DEVICE_NAME, name).apply()
+    }
+
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     private val googleSignInClient: GoogleSignInClient by lazy {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(BuildConfig.SUPABASE_URL + "/auth/v1/callback")
+            .requestIdToken(BuildConfig.GOOGLE_WEB_CLIENT_ID)
             .requestEmail()
             .build()
         GoogleSignIn.getClient(context, gso)

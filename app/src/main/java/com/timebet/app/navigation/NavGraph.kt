@@ -29,6 +29,7 @@ import com.timebet.app.features.controlledapps.ControlledAppsScreen
 import com.timebet.app.features.home.AppDetailScreen
 import com.timebet.app.features.home.HomeScreen
 import com.timebet.app.features.onboarding.OnboardingScreen
+import com.timebet.app.features.settings.DevicesScreen
 import com.timebet.app.features.settings.SettingsScreen
 import com.timebet.app.features.sports.MatchDetailScreen
 import com.timebet.app.features.sports.SportsLandingScreen
@@ -173,8 +174,16 @@ fun TimeBetNavGraph(
                     onBack = { navController.popBackStack() },
                     onNavigateToControlledApps = {
                         navController.navigate(NavRoute.ControlledApps.route)
+                    },
+                    onNavigateToDevices = {
+                        navController.navigate(NavRoute.Devices.route)
                     }
                 )
+            }
+
+            // Devices
+            composable(NavRoute.Devices.route) {
+                DevicesScreen(onBack = { navController.popBackStack() })
             }
 
             // Controlled Apps management

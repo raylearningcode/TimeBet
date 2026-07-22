@@ -23,6 +23,7 @@ sealed class NavRoute(
     data object Onboarding : NavRoute("onboarding")
     data object Settings : NavRoute("settings")
     data object ControlledApps : NavRoute("controlled_apps")
+    data object Devices : NavRoute("devices")
 
     // Casino game screens
     data object CoinFlip : NavRoute("casino/coin_flip")

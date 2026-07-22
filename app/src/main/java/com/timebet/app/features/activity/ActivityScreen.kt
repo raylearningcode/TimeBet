@@ -143,6 +143,19 @@ private fun ScreenTimeTab() {
         }
     }
 
+    // Per-device usage data
+    var deviceUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    LaunchedEffect(Unit) {
+        try {
+            val now = System.currentTimeMillis()
+            val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val sessions = ServiceLocator.database.appUsageSessionDao().getByDateRange(startOfDay, now)
+            deviceUsageMap = sessions
+                .groupBy { it.deviceId.ifEmpty { "unknown" } }
+                .mapValues { (_, list) -> list.sumOf { it.durationSeconds } }
+        } catch (_: Exception) { }
+    }
+
     // Load per-app usage breakdown
     LaunchedEffect(Unit) {
         try {
@@ -310,6 +323,24 @@ private fun ScreenTimeTab() {
                         title = "No Entertainment Apps Selected",
                         subtitle = "Go to Settings to choose which apps to track and limit."
                     )
+                }
+            }
+
+            // Per-device breakdown (shown when multiple devices synced)
+            if (deviceUsageMap.size > 1) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SectionHeader("By Device")
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                val currentDeviceId = ServiceLocator.authManager.deviceIdVal
+                val currentDeviceName = ServiceLocator.authManager.deviceName
+                deviceUsageMap.entries.forEachIndexed { idx, (deviceId, usage) ->
+                    val name = if (deviceId == currentDeviceId) currentDeviceName else "Other Device"
+                    val fraction = if (todayUsage > 0) usage.toFloat() / todayUsage else 0f
+                    item(key = "device_$idx") {
+                        DeviceUsageRow(name, usage, fraction, deviceId == currentDeviceId)
+                    }
                 }
             }
         }
@@ -1053,5 +1084,60 @@ private fun formatPredictionDate(placedAt: Long): String {
         }
     } catch (_: Exception) {
         ""
+    }
+}
+
+@Composable
+private fun DeviceUsageRow(
+    deviceName: String,
+    usageSeconds: Long,
+    fraction: Float,
+    isThisDevice: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(TimeBetSurfaceElevated)
+            .border(0.5.dp, if (isThisDevice) TimeBetGreen.copy(alpha = 0.3f) else TimeBetBorder, RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (isThisDevice) Icons.Filled.PhoneAndroid else Icons.Filled.Tablet,
+            contentDescription = null,
+            tint = if (isThisDevice) TimeBetGreen else TimeBetTextSecondary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(deviceName, style = TimeBetTypography.bodyMedium, color = TimeBetWhite)
+                if (isThisDevice) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("You", style = TimeBetTypography.labelSmall, color = TimeBetGreen)
+                }
+            }
+            Text(
+                TimeFormatter.formatHumanReadable(usageSeconds),
+                style = TimeBetTypography.labelSmall,
+                color = TimeBetTextTertiary
+            )
+        }
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(1.5.dp))
+                .background(TimeBetBorder)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(TimeBetGreen.copy(alpha = 0.5f))
+            )
+        }
     }
 }

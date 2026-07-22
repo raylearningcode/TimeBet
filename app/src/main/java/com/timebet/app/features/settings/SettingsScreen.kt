@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onNavigateToControlledApps: () -> Unit = {}
+    onNavigateToControlledApps: () -> Unit = {},
+    onNavigateToDevices: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf<UserSettingsEntity?>(null) }
@@ -151,7 +152,22 @@ fun SettingsScreen(
                 val state = authState.value
                 if (state is com.timebet.app.core.auth.AuthState.Authenticated) {
                     SettingsRow(label = "Signed in as", value = state.email)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Devices — navigate to device list
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onNavigateToDevices)
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Devices", style = TimeBetTypography.bodyLarge, color = TimeBetWhite)
+                            Text("Manage synced devices", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        }
+                        Icon(Icons.Filled.ChevronRight, null, tint = TimeBetTextTertiary)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     TextButton(onClick = {
                         ServiceLocator.syncEngine.stop()
                         ServiceLocator.authManager.signOut()

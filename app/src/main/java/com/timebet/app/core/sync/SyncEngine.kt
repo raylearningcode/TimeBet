@@ -84,6 +84,7 @@ class SyncEngine(
         val token = accessToken ?: return
         val userId = authManager.getUserId() ?: return
         val deviceId = authManager.deviceIdVal
+        val deviceName = authManager.deviceName
         val today = LocalDate.now().format(dateFormatter)
 
         // 1. PUSH: send local pending records to Supabase
@@ -123,6 +124,7 @@ class SyncEngine(
                     put("package_name", session.packageName)
                     put("duration_seconds", session.durationSeconds)
                     put("device_id", deviceId)
+                    put("device_name", authManager.deviceName)
                     put("started_at", session.startedAt)
                     put("ended_at", session.endedAt)
                     put("local_date", LocalDate.now().format(dateFormatter))
@@ -153,6 +155,7 @@ class SyncEngine(
                     put("result", round.result)
                     put("round_metadata", JSONObject(round.roundMetadataJson))
                     put("device_id", deviceId)
+                    put("device_name", authManager.deviceName)
                     put("started_at", round.startedAt)
                     put("settled_at", round.settledAt)
                     put("local_date", LocalDate.now().format(dateFormatter))
@@ -231,6 +234,7 @@ class SyncEngine(
                     put("app_name", app.appName)
                     put("is_controlled", app.isControlled)
                     put("device_id", deviceId)
+                    put("device_name", authManager.deviceName)
                 }
                 val url = URL("$baseUrl/rest/v1/user_controlled_apps?user_id=eq.$userId&package_name=eq.${app.packageName}")
                 val existing = get(url, token)
