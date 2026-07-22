@@ -63,9 +63,22 @@ fun HomeScreen(
     var controlledApps by remember { mutableStateOf<List<ControlledAppEntity>>(emptyList()) }
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
+    var showMonitoringWarning by remember { mutableStateOf(false) }
 
     // Live timer state — ticks every second when an app is active
     var liveElapsed by remember { mutableLongStateOf(0L) }
+
+    // Delay showing monitoring warning — service takes ~2s to start
+    LaunchedEffect(Unit) {
+        delay(3000L)
+        if (!ServiceLocator.usageMonitor.isMonitoring.value) {
+            showMonitoringWarning = true
+        }
+    }
+    // Hide warning once monitoring starts working
+    LaunchedEffect(isMonitoring) {
+        if (isMonitoring) showMonitoringWarning = false
+    }
 
     LaunchedEffect(refreshTrigger) {
         ServiceLocator.timeBankEngine.ensureDailyReset()
@@ -165,8 +178,8 @@ fun HomeScreen(
                 }
             }
 
-            // Monitoring status — only show when there's a problem
-            if (!isMonitoring) {
+            // Monitoring status — only show when there's a confirmed problem (after 3s delay)
+            if (showMonitoringWarning && !isMonitoring) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier

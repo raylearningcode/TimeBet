@@ -315,6 +315,23 @@ fun MatchDetailScreen(
                     }
                 }
 
+                // ── Double Chance ──
+                MarketSection("Double Chance") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            Triple("double_chance_1x", "1X", "home_draw"),
+                            Triple("double_chance_12", "12", "home_away"),
+                            Triple("double_chance_x2", "X2", "draw_away")
+                        ).forEach { (mt, label, sel) ->
+                            val odds = getOddsFor(mt, sel)
+                            MarketChip(label, odds, Modifier.weight(1f)) {
+                                selectedMarketType = mt; selectedSelection = sel; selectedOdds = odds
+                                stakeSeconds = (5 * 60L).coerceAtMost(effectiveBalance); isPlaced = false; showBetSlip = true
+                            }
+                        }
+                    }
+                }
+
                 // ── Both Teams to Score ──
                 MarketSection("Both Teams to Score") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

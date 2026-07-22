@@ -37,22 +37,32 @@ fun LoginScreen(onLoginComplete: () -> Unit) {
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            isSigningIn = true
-            errorMessage = null
-            scope.launch {
-                val authResult = authManager.handleSignInResult(result.data)
-                isSigningIn = false
-                when (authResult) {
-                    is com.timebet.app.core.auth.AuthResult.Success -> {
-                        // Start sync engine now that user is authenticated
-                        ServiceLocator.syncEngine.start()
-                        onLoginComplete()
-                    }
-                    is com.timebet.app.core.auth.AuthResult.Error -> {
-                        errorMessage = authResult.message
+        when {
+            result.resultCode == Activity.RESULT_OK -> {
+                isSigningIn = true
+                errorMessage = null
+                scope.launch {
+                    val authResult = authManager.handleSignInResult(result.data)
+                    isSigningIn = false
+                    when (authResult) {
+                        is com.timebet.app.core.auth.AuthResult.Success -> {
+                            ServiceLocator.syncEngine.start()
+                            onLoginComplete()
+                        }
+                        is com.timebet.app.core.auth.AuthResult.Error -> {
+                            errorMessage = authResult.message
+                        }
                     }
                 }
+            }
+            result.resultCode == Activity.RESULT_CANCELED -> {
+                // User cancelled — do nothing
+                isSigningIn = false
+            }
+            else -> {
+                // Some other result — likely an error
+                isSigningIn = false
+                errorMessage = "Sign-in failed (code: ${result.resultCode}). Try again."
             }
         }
     }

@@ -825,8 +825,23 @@ private fun InlineRoulette(balance: Long, isLocked: Boolean) {
                     BetType.DOZEN to "Dozens", BetType.COLUMN to "Columns",
                     BetType.STRAIGHT to "Number"
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                    betTypes.take(6).forEach { (type, label) ->
+                // Row 1: first 4 chips
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    betTypes.take(4).forEach { (type, label) ->
+                        FilterChip(
+                            selected = selectedBetType == type,
+                            onClick = { selectedBetType = type; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1 },
+                            label = { Text(label, style = TimeBetTypography.labelSmall) },
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = TimeBetWhite, selectedLabelColor = TimeBetBlack, containerColor = TimeBetSurfaceElevated, labelColor = TimeBetWhite),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                // Row 2: remaining 5 chips
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    betTypes.drop(4).forEach { (type, label) ->
                         FilterChip(
                             selected = selectedBetType == type,
                             onClick = { selectedBetType = type; selectedNumber = -1; selectedDozen = -1; selectedColumn = -1 },
