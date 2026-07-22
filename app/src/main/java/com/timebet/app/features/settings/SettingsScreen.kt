@@ -145,6 +145,24 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Account ──
+            val authState = ServiceLocator.authManager.authState.collectAsState()
+            SettingsSection("Account") {
+                val state = authState.value
+                if (state is com.timebet.app.core.auth.AuthState.Authenticated) {
+                    SettingsRow(label = "Signed in as", value = state.email)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        ServiceLocator.syncEngine.stop()
+                        ServiceLocator.authManager.signOut()
+                    }) {
+                        Text("Sign Out", style = TimeBetTypography.labelLarge, color = TimeBetRed)
+                    }
+                } else {
+                    SettingsRow(label = "Not signed in", value = "Sign in to sync across devices")
+                }
+            }
+
             // ── About ──
             SettingsSection("About") {
                 SettingsRow(label = "Version", value = "1.0.0")

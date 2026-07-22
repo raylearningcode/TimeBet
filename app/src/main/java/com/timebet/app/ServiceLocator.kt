@@ -1,11 +1,13 @@
 package com.timebet.app
 
 import android.content.Context
+import com.timebet.app.core.auth.AuthManager
 import com.timebet.app.core.blocking.AppBlockController
 import com.timebet.app.core.database.AppDatabase
 import com.timebet.app.core.monitoring.ForegroundUsageMonitor
 import com.timebet.app.core.permissions.PermissionHealthMonitor
 import com.timebet.app.core.sync.SupabaseSyncManager
+import com.timebet.app.core.sync.SyncEngine
 import com.timebet.app.core.time.*
 import com.timebet.app.data.repositories.AppRepository
 import com.timebet.app.data.repositories.TimeBankRepository
@@ -35,6 +37,8 @@ object ServiceLocator {
     private var _chickenEngine: ChickenEngine? = null
     private var _dailyResetManager: DailyResetManager? = null
     private var _supabaseSync: SupabaseSyncManager? = null
+    private var _authManager: AuthManager? = null
+    private var _syncEngine: SyncEngine? = null
 
     fun init(context: Context) {
         val app = context.applicationContext as TimeBetApp
@@ -100,6 +104,8 @@ object ServiceLocator {
         )
 
         _supabaseSync = SupabaseSyncManager(context)
+        _authManager = AuthManager(context)
+        _syncEngine = SyncEngine(context, authManager, database)
     }
 
     val database: AppDatabase get() = _database!!
@@ -118,5 +124,7 @@ object ServiceLocator {
     val chickenEngine: ChickenEngine get() = _chickenEngine!!
     val dailyResetManager: DailyResetManager get() = _dailyResetManager!!
     val supabaseSync: SupabaseSyncManager get() = _supabaseSync!!
+    val authManager: AuthManager get() = _authManager!!
+    val syncEngine: SyncEngine get() = _syncEngine!!
     val sportsPredictionDao get() = database.sportsPredictionDao()
 }

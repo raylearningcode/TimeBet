@@ -42,6 +42,9 @@ sealed class NavRoute(
             "sports/prediction/$eventId/$marketType/$selection"
     }
 
+    // Auth
+    data object Login : NavRoute("login")
+
     // Blocked screen
     data object Blocked : NavRoute("blocked")
 }

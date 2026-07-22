@@ -7,13 +7,17 @@ import androidx.room.PrimaryKey
 data class CasinoRoundEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val gameType: String, // "coin_flip", "mines", "roulette", "blackjack", "crash", "chicken"
+    val gameType: String,
     val stakeSeconds: Long,
     val profitSeconds: Long = 0,
     val lossSeconds: Long = 0,
-    val result: String, // "win", "loss", "push"
-    val roundMetadataJson: String = "{}", // Game-specific data
+    val result: String,
+    val roundMetadataJson: String = "{}",
     val startedAt: Long,
     val settledAt: Long = System.currentTimeMillis(),
-    val status: String = "settled" // "initiated" | "settled" — PRD Section 43 crash recovery
+    val status: String = "settled",
+    // Sync columns
+    val syncStatus: String = "pending",
+    val serverId: String? = null,
+    val deviceId: String = "unknown"
 )

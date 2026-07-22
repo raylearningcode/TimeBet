@@ -5,6 +5,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.timebet.app.core.database.dao.AppUsageSessionDao
 import com.timebet.app.core.database.dao.ControlledAppDao
 import com.timebet.app.core.database.entity.AppUsageSessionEntity
@@ -46,7 +47,15 @@ class ForegroundUsageMonitor(
     private var currentSession: ActiveSession? = null
     private val controlledPackages = mutableSetOf<String>()
     private var lastCheckTime = 0L
+    private var lastEventTime = 0L
+    private var consecutiveEmptyPolls = 0
     private var pollIntervalMs = 2000L // 2 second polling
+
+    companion object {
+        private const val TAG = "ForegroundUsageMonitor"
+        /** Number of empty polls before performing a usage-stats verification */
+        private const val EMPTY_POLLS_BEFORE_VERIFY = 15 // ~30 seconds at 2s intervals
+    }
 
     /**
      * Start monitoring foreground app usage.
@@ -100,6 +109,13 @@ class ForegroundUsageMonitor(
 
     /**
      * Main polling check — queries recent usage events to detect foreground app.
+     *
+     * PRD Section 18, 32.2:
+     * When no foreground events are found in the polling window, we do NOT assume
+     * the device is locked. The user is most likely still using the same app — apps
+     * don't generate MOVE_TO_FOREGROUND events while they're actively in use.
+     * Instead, we maintain the current session and periodically verify via
+     * queryUsageStats that the tracked app is still the most recently used.
      */
     private fun checkForegroundApp() {
         try {
@@ -126,16 +142,108 @@ class ForegroundUsageMonitor(
 
             lastCheckTime = now
 
-            if (foregroundPackage != null && foregroundPackage != context.packageName) {
-                handleForegroundChange(foregroundPackage, eventTime)
-            } else if (foregroundPackage == null) {
-                // No foreground event found — might be locked or idle
-                handleForegroundChange(null, now)
+            if (foregroundPackage != null) {
+                if (foregroundPackage == context.packageName) {
+                    // User switched to TimeBet itself — end any active controlled-app session
+                    lastEventTime = now
+                    consecutiveEmptyPolls = 0
+                    if (currentSession != null) {
+                        val deducted = endCurrentSession()
+                        _activeApp.value = ActiveAppState.None
+                        if (deducted > 0) {
+                            scope.launch {
+                                val result = timeBankEngine.deduct(deducted)
+                                onBalanceChanged?.invoke(result.remainingBalance)
+                            }
+                        }
+                    }
+                } else {
+                    // We have an explicit foreground event for another app — act on it
+                    lastEventTime = now
+                    consecutiveEmptyPolls = 0
+                    handleForegroundChange(foregroundPackage, eventTime)
+                }
+            } else {
+                // No new foreground event in this window. Maintain current session state.
+                // The user is likely still using the same app without generating new events.
+                consecutiveEmptyPolls++
+
+                // Periodically verify the current session is still valid
+                if (currentSession != null && consecutiveEmptyPolls >= EMPTY_POLLS_BEFORE_VERIFY) {
+                    consecutiveEmptyPolls = 0
+                    verifyCurrentSession(usageStatsManager, now)
+                }
             }
         } catch (e: Exception) {
+            Log.e(TAG, "checkForegroundApp failed", e)
             // Permission likely revoked
             permissionMonitor.checkPermissions()
             onTrackingFailed?.invoke()
+        }
+    }
+
+    /**
+     * Verify that the currently tracked session's app is still the most recently used.
+     *
+     * Uses UsageStatsManager.queryUsageStats() as a fallback when no foreground events
+     * have been seen for a while. This catches cases where:
+     * - The user locked their phone
+     * - The user switched to a non-controlled app via a fast gesture that didn't
+     *   generate events in our polling window
+     *
+     * Only ends the session if the tracked app's lastUsedTime is significantly stale
+     * (more than 10 seconds ago), indicating the user genuinely moved away.
+     */
+    private fun verifyCurrentSession(usageStatsManager: UsageStatsManager, now: Long) {
+        try {
+            val session = currentSession ?: return
+            val lookbackStart = now - 10_000 // Look back 10 seconds
+
+            val usageStats = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                lookbackStart,
+                now
+            )
+
+            // Find the app with the most recent lastTimeUsed
+            var mostRecentPackage: String? = null
+            var mostRecentTime = 0L
+
+            for (stats in usageStats) {
+                if (stats.lastTimeUsed > mostRecentTime) {
+                    mostRecentTime = stats.lastTimeUsed
+                    mostRecentPackage = stats.packageName
+                }
+            }
+
+            // If the tracked app is no longer the most recent, end the session
+            if (mostRecentPackage != null && mostRecentPackage != session.packageName) {
+                Log.d(TAG, "Session verify: ${session.packageName} no longer most recent ($mostRecentPackage is)")
+                val deducted = endCurrentSession()
+                _activeApp.value = ActiveAppState.None
+                if (deducted > 0) {
+                    scope.launch {
+                        val result = timeBankEngine.deduct(deducted)
+                        onBalanceChanged?.invoke(result.remainingBalance)
+                    }
+                }
+            } else if (mostRecentPackage == session.packageName &&
+                       (now - mostRecentTime) > 10_000) {
+                // Tracked app is most recent but hasn't been used in 10+ seconds
+                // — likely the device is locked
+                Log.d(TAG, "Session verify: ${session.packageName} stale (last used ${now - mostRecentTime}ms ago)")
+                val deducted = endCurrentSession()
+                _activeApp.value = ActiveAppState.None
+                if (deducted > 0) {
+                    scope.launch {
+                        val result = timeBankEngine.deduct(deducted)
+                        onBalanceChanged?.invoke(result.remainingBalance)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyCurrentSession failed", e)
+            // Don't disrupt tracking on verification failure — just try again later
         }
     }
 

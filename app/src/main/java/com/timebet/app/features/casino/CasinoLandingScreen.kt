@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -176,7 +177,10 @@ fun CasinoLandingScreen(onGameClick: (String) -> Unit) {
                 else -> {
                     // No game selected — show summary and game info cards
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(20.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text("Select a game above to play", style = TimeBetTypography.bodyLarge, color = TimeBetTextSecondary)

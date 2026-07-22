@@ -13,7 +13,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.timebet.app.ServiceLocator
+import com.timebet.app.core.auth.AuthState
 import com.timebet.app.features.activity.ActivityScreen
+import com.timebet.app.features.auth.LoginScreen
 import com.timebet.app.features.casino.CasinoLandingScreen
 import com.timebet.app.features.casino.baccarat.BaccaratScreen
 import com.timebet.app.features.casino.blackjack.BlackjackScreen
@@ -66,7 +69,7 @@ fun TimeBetNavGraph(
             composable(NavRoute.Onboarding.route) {
                 OnboardingScreen(
                     onOnboardingComplete = {
-                        navController.navigate(NavRoute.Home.route) {
+                        navController.navigate(NavRoute.Login.route) {
                             popUpTo(NavRoute.Onboarding.route) { inclusive = true }
                         }
                     }
@@ -103,6 +106,17 @@ fun TimeBetNavGraph(
 
             composable(NavRoute.Activity.route) {
                 ActivityScreen()
+            }
+
+            // Auth
+            composable(NavRoute.Login.route) {
+                LoginScreen(
+                    onLoginComplete = {
+                        navController.navigate(NavRoute.Home.route) {
+                            popUpTo(NavRoute.Login.route) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             // Detail screens

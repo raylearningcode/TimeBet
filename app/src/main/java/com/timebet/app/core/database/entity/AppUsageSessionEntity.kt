@@ -13,5 +13,9 @@ data class AppUsageSessionEntity(
     val endedAt: Long? = null,
     val durationSeconds: Long = 0,
     val wasControlled: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // Sync columns
+    val syncStatus: String = "pending", // "pending" | "synced"
+    val serverId: String? = null,       // UUID from Supabase
+    val deviceId: String = "unknown"
 )

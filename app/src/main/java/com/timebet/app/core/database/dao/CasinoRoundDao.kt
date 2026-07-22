@@ -92,6 +92,17 @@ interface CasinoRoundDao {
 
     @Query("SELECT * FROM casino_rounds WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): CasinoRoundEntity?
+
+    // ─── Sync methods ───
+
+    @Query("SELECT * FROM casino_rounds WHERE syncStatus = 'pending' LIMIT 50")
+    suspend fun getUnsynced(): List<CasinoRoundEntity>
+
+    @Query("UPDATE casino_rounds SET syncStatus = 'synced' WHERE id = :id")
+    suspend fun markSynced(id: Long)
+
+    @Query("SELECT * FROM casino_rounds WHERE serverId = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: String): CasinoRoundEntity?
 }
 
 data class GameCountResult(

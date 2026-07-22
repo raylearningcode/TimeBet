@@ -1,9 +1,6 @@
 package com.timebet.app.core.database.dao
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.timebet.app.core.database.entity.AppUsageSessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +15,9 @@ interface AppUsageSessionDao {
 
     @Query("SELECT * FROM app_usage_sessions WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): AppUsageSessionEntity?
+
+    @Query("SELECT * FROM app_usage_sessions WHERE serverId = :serverId LIMIT 1")
+    suspend fun getByServerId(serverId: String): AppUsageSessionEntity?
 
     @Query("SELECT * FROM app_usage_sessions ORDER BY startedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<AppUsageSessionEntity>>
@@ -65,6 +65,14 @@ interface AppUsageSessionDao {
         GROUP BY packageName
     """)
     suspend fun getSessionCounts(startOfDay: Long, endOfDay: Long): List<SessionCountResult>
+
+    // ─── Sync methods ───
+
+    @Query("SELECT * FROM app_usage_sessions WHERE syncStatus = 'pending' LIMIT 50")
+    suspend fun getUnsynced(): List<AppUsageSessionEntity>
+
+    @Query("UPDATE app_usage_sessions SET syncStatus = 'synced' WHERE id = :id")
+    suspend fun markSynced(id: Long)
 }
 
 data class AppUsageBreakdown(
