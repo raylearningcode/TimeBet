@@ -48,6 +48,8 @@ fun ControlledAppsScreen(onBack: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("all") }
     var selectedCount by remember { mutableIntStateOf(0) }
+    var showSelectAllConfirm by remember { mutableStateOf(false) }
+    var showDeselectAllConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         installedApps = ServiceLocator.appRepository.getInstalledApps()
@@ -146,26 +148,10 @@ fun ControlledAppsScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(onClick = {
-                    scope.launch {
-                        installedApps.forEach { app ->
-                            if (app.packageName !in controlledPackages) {
-                                ServiceLocator.appRepository.setAppControlled(app.packageName, app.appName, controlled = true)
-                            }
-                        }
-                        controlledApps = ServiceLocator.appRepository.getAllControlledApps()
-                    }
-                }) {
+                TextButton(onClick = { showSelectAllConfirm = true }) {
                     Text("Select All", color = TimeBetGreen, style = TimeBetTypography.labelMedium)
                 }
-                TextButton(onClick = {
-                    scope.launch {
-                        controlledApps.filter { it.isControlled }.forEach { app ->
-                            ServiceLocator.appRepository.setAppControlled(app.packageName, app.appName, controlled = false)
-                        }
-                        controlledApps = ServiceLocator.appRepository.getAllControlledApps()
-                    }
-                }) {
+                TextButton(onClick = { showDeselectAllConfirm = true }) {
                     Text("Deselect All", color = TimeBetRed, style = TimeBetTypography.labelMedium)
                 }
             }
@@ -204,6 +190,70 @@ fun ControlledAppsScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    // Confirmation dialog for Select All
+    if (showSelectAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSelectAllConfirm = false },
+            containerColor = TimeBetSurfaceElevated,
+            title = { Text("Select All Apps?", color = TimeBetWhite) },
+            text = {
+                Text(
+                    "This will track ALL ${installedApps.size} installed apps. This may drain battery faster and make the app harder to use. Consider selecting only entertainment apps.",
+                    color = TimeBetTextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSelectAllConfirm = false
+                    scope.launch {
+                        installedApps.forEach { app ->
+                            if (app.packageName !in controlledPackages) {
+                                ServiceLocator.appRepository.setAppControlled(app.packageName, app.appName, controlled = true)
+                            }
+                        }
+                        controlledApps = ServiceLocator.appRepository.getAllControlledApps()
+                    }
+                }) { Text("Select All", color = TimeBetGreen) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSelectAllConfirm = false }) {
+                    Text("Cancel", color = TimeBetTextTertiary)
+                }
+            }
+        )
+    }
+
+    // Confirmation dialog for Deselect All
+    if (showDeselectAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeselectAllConfirm = false },
+            containerColor = TimeBetSurfaceElevated,
+            title = { Text("Deselect All Apps?", color = TimeBetWhite) },
+            text = {
+                Text(
+                    "This will stop tracking all ${controlledPackages.size} apps. TimeBet won't monitor any apps until you re-select them.",
+                    color = TimeBetTextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeselectAllConfirm = false
+                    scope.launch {
+                        controlledApps.filter { it.isControlled }.forEach { app ->
+                            ServiceLocator.appRepository.setAppControlled(app.packageName, app.appName, controlled = false)
+                        }
+                        controlledApps = ServiceLocator.appRepository.getAllControlledApps()
+                    }
+                }) { Text("Deselect All", color = TimeBetRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeselectAllConfirm = false }) {
+                    Text("Cancel", color = TimeBetTextTertiary)
+                }
+            }
+        )
     }
 }
 

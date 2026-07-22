@@ -100,8 +100,9 @@ fun SettingsScreen(
 
             // ── Casino ──
             SettingsSection("Casino") {
-                SettingsRow(label = "House Edge Transparency", value = "View") { /* TODO */ }
-                SettingsRow(label = "Game Fairness", value = "Provably Fair") { /* TODO */ }
+                SettingsRow(label = "Profit Cap", value = "${(TimeBetConstants.MAX_DAILY_BONUS_PERCENTAGE * 100).toInt()}% of daily allowance")
+                SettingsRow(label = "Max Stake", value = "${(TimeBetConstants.MAX_STAKE_PERCENTAGE * 100).toInt()}% of balance")
+                SettingsRow(label = "Fairness", value = "Crypto RNG — provably fair")
             }
 
             // ── Sports ──
@@ -137,12 +138,6 @@ fun SettingsScreen(
             SettingsSection("Notifications") {
                 SwitchSetting(label = "Low Time Warnings", checked = settings?.notificationsEnabled ?: true) { enabled ->
                     scope.launch { ServiceLocator.database.userSettingsDao().updateNotifications(enabled) }
-                }
-                SwitchSetting(label = "Haptics", checked = settings?.hapticsEnabled ?: true) { enabled ->
-                    scope.launch { ServiceLocator.database.userSettingsDao().updateHaptics(enabled) }
-                }
-                SwitchSetting(label = "Sound", checked = settings?.soundEnabled ?: false) { enabled ->
-                    scope.launch { ServiceLocator.database.userSettingsDao().updateSound(enabled) }
                 }
             }
 

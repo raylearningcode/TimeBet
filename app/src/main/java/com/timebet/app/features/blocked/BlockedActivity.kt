@@ -4,13 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.timebet.app.ServiceLocator
@@ -84,27 +86,32 @@ fun BlockedScreen(
         ) {
             Spacer(modifier = Modifier.weight(1f))
 
-            // Main "00:00" display
+            // Main balance display — shows actual remaining time
+            val remaining = bankState?.currentBalanceSeconds ?: 0
             Text(
-                text = "00:00",
+                text = TimeFormatter.formatMinutesSeconds(remaining),
                 style = TimeBetTypography.displayLarge,
-                color = TimeBetWhite,
+                color = if (remaining <= 0) TimeBetRed else TimeBetWhite,
                 textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "TIME'S UP",
+                text = if (remaining <= 0) "TIME'S UP" else "TIME LOW",
                 style = TimeBetTypography.headlineMedium,
-                color = TimeBetTextSecondary,
+                color = if (remaining <= 0) TimeBetRed else TimeBetAmber,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "You've used today's available entertainment time.",
+                text = if (remaining <= 0) {
+                    "You've used today's entertainment time. It resets at midnight."
+                } else {
+                    "Only ${TimeFormatter.formatMinutesShort(remaining)} left. Controlled apps will be blocked when it hits zero."
+                },
                 style = TimeBetTypography.bodyLarge,
                 color = TimeBetTextTertiary,
                 textAlign = TextAlign.Center,
@@ -115,17 +122,30 @@ fun BlockedScreen(
 
             // Usage summary
             bankState?.let { bank ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(TimeBetSurfaceElevated, MaterialTheme.shapes.medium)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TimeBetSurfaceElevated)
+                        .border(0.5.dp, TimeBetBorder, RoundedCornerShape(12.dp))
                         .padding(20.dp)
                 ) {
-                    SummaryRow("Used Today", TimeFormatter.formatHumanReadable(bank.usedSeconds))
-                    SummaryRow("Time Won", "+${TimeFormatter.formatHumanReadable(bank.netCasinoProfit.coerceAtLeast(0))}")
-                    SummaryRow("Time Lost", "-${TimeFormatter.formatHumanReadable(bank.casinoLossSeconds)}")
-                    SummaryRow("Next Reset", nextResetHour)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Today's Summary",
+                            style = TimeBetTypography.labelLarge,
+                            color = TimeBetWhite
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SummaryRow("Used Today", TimeFormatter.formatHumanReadable(bank.usedSeconds))
+                        if (bank.casinoProfitSeconds > 0) {
+                            SummaryRow("Time Won", "+${TimeFormatter.formatHumanReadable(bank.casinoProfitSeconds)}", TimeBetGreen)
+                        }
+                        if (bank.casinoLossSeconds > 0) {
+                            SummaryRow("Time Lost", "-${TimeFormatter.formatHumanReadable(bank.casinoLossSeconds)}", TimeBetRed)
+                        }
+                        SummaryRow("Next Reset", nextResetHour)
+                    }
                 }
             }
 
@@ -165,22 +185,18 @@ fun BlockedScreen(
 }
 
 @Composable
-private fun SummaryRow(label: String, value: String) {
+private fun SummaryRow(
+    label: String,
+    value: String,
+    valueColor: androidx.compose.ui.graphics.Color = TimeBetWhite
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            style = TimeBetTypography.bodyMedium,
-            color = TimeBetTextSecondary
-        )
-        Text(
-            text = value,
-            style = TimeBetTypography.bodyMedium,
-            color = TimeBetWhite
-        )
+        Text(text = label, style = TimeBetTypography.bodyMedium, color = TimeBetTextSecondary)
+        Text(text = value, style = TimeBetTypography.bodyMedium, color = valueColor)
     }
 }

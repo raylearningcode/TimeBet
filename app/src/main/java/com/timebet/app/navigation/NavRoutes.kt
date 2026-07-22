@@ -38,16 +38,9 @@ sealed class NavRoute(
     data object MatchDetail : NavRoute("sports/match/{eventId}") {
         fun createRoute(eventId: String) = "sports/match/$eventId"
     }
-    data object PredictionSlip : NavRoute("sports/prediction/{eventId}/{marketType}/{selection}") {
-        fun createRoute(eventId: String, marketType: String, selection: String) =
-            "sports/prediction/$eventId/$marketType/$selection"
-    }
 
     // Auth
     data object Login : NavRoute("login")
-
-    // Blocked screen
-    data object Blocked : NavRoute("blocked")
 }
 
 data class BottomNavItem(

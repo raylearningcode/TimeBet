@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -234,8 +235,9 @@ fun HomeScreen(
             }
 
             // Thin usage bar
-            val usageFraction = if ((bankState?.baseAllowanceSeconds ?: 0) > 0) {
-                ((bankState?.usedSeconds ?: 0).toFloat() / bankState!!.baseAllowanceSeconds).coerceIn(0f, 1f)
+            val baseAllowance = bankState?.baseAllowanceSeconds ?: 0
+            val usageFraction = if (baseAllowance > 0) {
+                ((bankState?.usedSeconds ?: 0).toFloat() / baseAllowance).coerceIn(0f, 1f)
             } else 0f
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -275,6 +277,41 @@ fun HomeScreen(
                         onClick = { onAppClick(app.packageName) }
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                }
+            } else {
+                // Empty state — no entertainment apps selected
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TimeBetSurfaceElevated)
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Apps,
+                            contentDescription = null,
+                            tint = TimeBetTextTertiary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "No entertainment apps selected",
+                                style = TimeBetTypography.bodyMedium,
+                                color = TimeBetTextSecondary
+                            )
+                            Text(
+                                "Go to Settings to choose apps to track",
+                                style = TimeBetTypography.labelSmall,
+                                color = TimeBetTextTertiary
+                            )
+                        }
+                    }
                 }
             }
 
