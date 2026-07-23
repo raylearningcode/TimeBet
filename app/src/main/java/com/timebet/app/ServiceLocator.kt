@@ -36,6 +36,7 @@ object ServiceLocator {
     private var _baccaratEngine: BaccaratEngine? = null
     private var _chickenEngine: ChickenEngine? = null
     private var _questGenerator: com.timebet.app.core.quests.QuestGenerator? = null
+    private var _questProgressUpdater: com.timebet.app.core.quests.QuestProgressUpdater? = null
     private var _dailyResetManager: DailyResetManager? = null
     private var _supabaseSync: SupabaseSyncManager? = null
     private var _authManager: AuthManager? = null
@@ -100,6 +101,7 @@ object ServiceLocator {
         )
 
         _questGenerator = com.timebet.app.core.quests.QuestGenerator(context)
+        _questProgressUpdater = com.timebet.app.core.quests.QuestProgressUpdater(context)
 
         _dailyResetManager = DailyResetManager(
             context = context,
@@ -111,6 +113,8 @@ object ServiceLocator {
         _supabaseSync = SupabaseSyncManager(context)
         _authManager = AuthManager(context)
         _syncEngine = SyncEngine(context, authManager, database)
+
+        _questProgressUpdater!!.start()
     }
 
     val database: AppDatabase get() = _database!!
@@ -128,6 +132,7 @@ object ServiceLocator {
     val baccaratEngine: BaccaratEngine get() = _baccaratEngine!!
     val chickenEngine: ChickenEngine get() = _chickenEngine!!
     val questGenerator: com.timebet.app.core.quests.QuestGenerator get() = _questGenerator!!
+    val questProgressUpdater: com.timebet.app.core.quests.QuestProgressUpdater get() = _questProgressUpdater!!
     val dailyResetManager: DailyResetManager get() = _dailyResetManager!!
     val supabaseSync: SupabaseSyncManager get() = _supabaseSync!!
     val authManager: AuthManager get() = _authManager!!
