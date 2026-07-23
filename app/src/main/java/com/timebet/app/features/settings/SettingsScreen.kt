@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
@@ -117,6 +119,82 @@ fun SettingsScreen(
             SettingsSection("Notifications") {
                 SwitchSetting(label = "Low Time Warnings", checked = settings?.notificationsEnabled ?: true) { enabled ->
                     scope.launch { ServiceLocator.database.userSettingsDao().updateNotifications(enabled) }
+                }
+            }
+
+            // ── Walk Protection ──
+            val walkPrefs = context.getSharedPreferences("timebet_walk", Context.MODE_PRIVATE)
+            var walkEnabled by remember { mutableStateOf(walkPrefs.getBoolean("walk_detection_enabled", true)) }
+            var walkMultiplierSetting by remember { mutableFloatStateOf(walkPrefs.getFloat("walk_multiplier", 2.0f)) }
+
+            SettingsSection("Walk Protection") {
+                SwitchSetting(
+                    label = "Walk Detection",
+                    checked = walkEnabled
+                ) { enabled ->
+                    walkEnabled = enabled
+                    walkPrefs.edit().putBoolean("walk_detection_enabled", enabled).apply()
+                }
+                if (walkEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Time multiplier when walking: ${walkMultiplierSetting}x",
+                        style = TimeBetTypography.bodyMedium,
+                        color = TimeBetWhite
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row {
+                        listOf(1.5f, 2.0f, 3.0f).forEach { mult ->
+                            FilterChip(
+                                selected = walkMultiplierSetting == mult,
+                                onClick = {
+                                    walkMultiplierSetting = mult
+                                    walkPrefs.edit().putFloat("walk_multiplier", mult).apply()
+                                },
+                                label = { Text("${mult}x", style = TimeBetTypography.labelSmall) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = TimeBetAmber,
+                                    selectedLabelColor = TimeBetBlack,
+                                    containerColor = TimeBetSurfaceElevated,
+                                    labelColor = TimeBetWhite
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Quests ──
+            val questPrefs = context.getSharedPreferences("timebet_quests", Context.MODE_PRIVATE)
+            var questsEnabled by remember { mutableStateOf(questPrefs.getBoolean("quests_enabled", true)) }
+
+            SettingsSection("Quests") {
+                SwitchSetting(
+                    label = "Enable Quests",
+                    checked = questsEnabled
+                ) { enabled ->
+                    questsEnabled = enabled
+                    questPrefs.edit().putBoolean("quests_enabled", enabled).apply()
+                }
+                if (questsEnabled) {
+                    // Show today's quest earnings
+                    var todayEarnings by remember { mutableLongStateOf(0L) }
+                    LaunchedEffect(Unit) {
+                        try {
+                            val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                            val quests = ServiceLocator.database.questDao().getByDate(today)
+                            todayEarnings = quests.filter { it.status == "claimed" }.sumOf { it.rewardSeconds }
+                        } catch (_: Exception) {}
+                    }
+                    if (todayEarnings > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsRow(
+                            label = "Today's Quest Earnings",
+                            value = "+${com.timebet.app.util.TimeFormatter.formatHumanReadable(todayEarnings)}"
+                        )
+                    }
                 }
             }
 
