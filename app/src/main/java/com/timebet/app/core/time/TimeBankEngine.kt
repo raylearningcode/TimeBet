@@ -241,6 +241,23 @@ class TimeBankEngine(
         newBalance
     }
 
+    // ─── Quest Rewards ───
+
+    /**
+     * Credit quest reward seconds to the balance.
+     * Quest rewards are not subject to the daily bonus cap.
+     */
+    suspend fun creditQuestReward(rewardSeconds: Long): Long = mutex.withLock {
+        val today = todayDate()
+        val bank = ensureBankExists(today)
+
+        if (rewardSeconds <= 0) return bank.currentBalanceSeconds
+
+        val newBalance = bank.currentBalanceSeconds + rewardSeconds
+        dailyTimeBankDao.updateBalance(today, newBalance)
+        newBalance
+    }
+
     // ─── Daily Reset (PRD Section 7.3) ───
 
     /**
