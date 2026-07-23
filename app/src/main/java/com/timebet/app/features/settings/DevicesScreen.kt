@@ -323,7 +323,7 @@ private suspend fun collectDeviceUsage(): List<DeviceInfo> {
             val name = if (id == ServiceLocator.authManager.deviceIdVal) {
                 ServiceLocator.authManager.deviceName
             } else {
-                "Other Device"
+                s.deviceName.ifEmpty { "Device $id".take(12) }
             }
             val existing = result.getOrPut(id) {
                 DeviceInfo(id, name, 0, 0, "")
@@ -344,7 +344,7 @@ private suspend fun collectDeviceUsage(): List<DeviceInfo> {
             val name = if (id == ServiceLocator.authManager.deviceIdVal) {
                 ServiceLocator.authManager.deviceName
             } else {
-                "Other Device"
+                s.deviceName.ifEmpty { "Device ${id.take(8)}" }
             }
             val existing = result.getOrPut(id) {
                 DeviceInfo(id, name, 0, 0, "")
