@@ -10,69 +10,101 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Detects walking via accelerometer peak detection.
+ * Detects walking using Android's built-in TYPE_STEP_DETECTOR sensor.
  *
- * Algorithm: samples accelerometer at SENSOR_DELAY_GAME (~20ms),
- * detects magnitude peaks above 1.08g, requires ≥2 peaks in 3 seconds
- * to transition to WALKING, and 10s of no peaks to return to STATIONARY.
+ * Unlike raw accelerometer peak detection, this sensor uses the phone's
+ * hardware step-detection algorithm — far more reliable and battery-efficient.
+ * Fires one event per detected step.
+ *
+ * Detection logic:
+ * - Counts steps in a rolling 5-second window
+ * - ≥2 steps in 5 seconds → WALKING
+ * - 0 steps in 10 seconds → STATIONARY
+ * - Reads sensitivity multiplier from SharedPreferences (timebet_walk)
  */
 class WalkDetector(private val context: Context) {
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val stepDetector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
     private val _walkState = MutableStateFlow<WalkState>(WalkState.Stationary)
     val walkState: StateFlow<WalkState> = _walkState.asStateFlow()
 
-    private var peakTimestamps = mutableListOf<Long>()
-    private var lastPeakTime = 0L
+    // Rolling window of step timestamps
+    private val stepTimestamps = mutableListOf<Long>()
+    private var lastCheckTime = 0L
+
+    /** Whether walk detection is enabled (from settings) */
+    private fun isEnabled(): Boolean {
+        return context.getSharedPreferences("timebet_walk", Context.MODE_PRIVATE)
+            .getBoolean("walk_detection_enabled", true)
+    }
+
+    /** Current multiplier from settings */
+    fun getMultiplier(): Double {
+        return context.getSharedPreferences("timebet_walk", Context.MODE_PRIVATE)
+            .getFloat("walk_multiplier", 2.0f).toDouble()
+    }
 
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
-            if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
-
-            val x = event.values[0]
-            val y = event.values[1]
-            val z = event.values[2]
-            val magnitude = Math.sqrt((x * x + y * y + z * z).toDouble())
+            if (event.sensor.type != Sensor.TYPE_STEP_DETECTOR) return
+            if (!isEnabled()) {
+                if (_walkState.value is WalkState.Walking) {
+                    _walkState.value = WalkState.Stationary
+                }
+                return
+            }
 
             val now = System.currentTimeMillis()
 
-            if (magnitude > 1.08) { // peak above 1.08g threshold (sensitive enough for casual walking)
-                if (now - lastPeakTime >= 250) { // minimum 250ms gap between peaks
-                    peakTimestamps.add(now)
-                    lastPeakTime = now
+            // Each event = 1 detected step
+            stepTimestamps.add(now)
 
-                    // Keep only peaks from the last 3 seconds
-                    peakTimestamps.removeAll { now - it > 3000 }
+            // Keep only steps from the last 5 seconds
+            stepTimestamps.removeAll { now - it > 5000 }
 
-                    if (peakTimestamps.size >= 2 && _walkState.value !is WalkState.Walking) {
-                        _walkState.value = WalkState.Walking
-                    }
-                }
+            // ≥2 steps in 5 seconds → walking
+            if (stepTimestamps.size >= 2 && _walkState.value !is WalkState.Walking) {
+                _walkState.value = WalkState.Walking
             }
 
-            // Check for stationary: no peaks in 10 seconds
-            if (_walkState.value is WalkState.Walking) {
-                peakTimestamps.removeAll { now - it > 10000 }
-                if (peakTimestamps.isEmpty()) {
-                    _walkState.value = WalkState.Stationary
-                }
-            }
+            lastCheckTime = now
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun scheduleStationaryCheck() {
+        mainHandler.postDelayed({
+            val now = System.currentTimeMillis()
+            stepTimestamps.removeAll { now - it > 10000 }
+            if (stepTimestamps.isEmpty() && _walkState.value is WalkState.Walking) {
+                _walkState.value = WalkState.Stationary
+            }
+            if (_walkState.value is WalkState.Walking) {
+                scheduleStationaryCheck()
+            }
+        }, 3000)
+    }
+
     fun start() {
-        accelerometer?.let {
-            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME)
+        stepDetector?.let {
+            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
     }
 
     fun stop() {
         sensorManager.unregisterListener(sensorListener)
+        stepTimestamps.clear()
         _walkState.value = WalkState.Stationary
+    }
+
+    /** Call when transitioning TO walking state to start stationary checks */
+    fun onWalkingStarted() {
+        scheduleStationaryCheck()
     }
 }
 

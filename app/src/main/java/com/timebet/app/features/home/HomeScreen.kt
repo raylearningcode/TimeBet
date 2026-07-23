@@ -484,15 +484,80 @@ fun HomeScreen(
                 }
             }
 
-            // ── Custom Quest Button ──
+            // ── Quest Action Buttons ──
             var showCustomQuest by remember { mutableStateOf(false) }
-            TextButton(
-                onClick = { showCustomQuest = true },
-                modifier = Modifier.fillMaxWidth()
+            var isAiLoading by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Filled.Add, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Create Custom Quest", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                TextButton(
+                    onClick = { showCustomQuest = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Custom", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                }
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            isAiLoading = true
+                            try {
+                                // Get user stats for AI
+                                val today = java.time.LocalDate.now()
+                                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                val generator = ServiceLocator.questGenerator
+                                // Use the existing daily quests or generate new ones via Gemini
+                                val apps = ServiceLocator.appRepository.getAllControlledApps()
+                                val now = System.currentTimeMillis()
+                                val weekStart = java.time.LocalDate.now().minusDays(7)
+                                    .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                val breakdown = ServiceLocator.database.appUsageSessionDao()
+                                    .getUsageBreakdown(weekStart, now)
+                                val topApps = breakdown.take(3).map { b ->
+                                    val app = apps.find { it.packageName == b.packageName }
+                                    Pair(app?.appName ?: b.packageName, b.totalSeconds / 7 / 60)
+                                }
+                                val suggestions = com.timebet.app.core.quests.GeminiQuestAdvisor.getSuggestions(
+                                    context, 5000.0, "stable", topApps
+                                )
+                                if (suggestions.isNotEmpty()) {
+                                    for (s in suggestions) {
+                                        val entity = com.timebet.app.core.database.entity.QuestEntity(
+                                            id = java.util.UUID.randomUUID().toString(),
+                                            date = today,
+                                            type = s.type,
+                                            title = s.title,
+                                            targetValue = if (s.type == "step") s.targetSteps else s.targetMinutes * 60,
+                                            targetPackageName = if (s.type == "discipline" || s.type == "combo")
+                                                apps.find { it.appName.equals(s.targetApp, ignoreCase = true) }?.packageName
+                                                ?: s.targetApp else null,
+                                            currentValue = 0,
+                                            rewardSeconds = s.rewardMinutes * 60,
+                                            status = "active"
+                                        )
+                                        ServiceLocator.database.questDao().upsert(entity)
+                                    }
+                                    todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                                }
+                            } catch (_: Exception) {
+                                // Gemini unavailable — fall back silently, user can use Generate Quests
+                            }
+                            isAiLoading = false
+                        }
+                    },
+                    enabled = !isAiLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (isAiLoading) {
+                        CircularProgressIndicator(color = TimeBetGoldLight, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Stars, null, tint = TimeBetGoldLight, modifier = Modifier.size(14.dp))
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("AI Suggest", style = TimeBetTypography.labelSmall, color = TimeBetGoldLight)
+                }
             }
 
             // Custom quest bottom sheet
@@ -792,9 +857,10 @@ private fun CustomQuestSheet(
         } catch (_: Exception) {}
     }
 
-    // Recalculate preview when inputs change
+    // Recalculate preview when inputs change (debounced)
     LaunchedEffect(selectedType, targetValue, selectedApp) {
         isCalculating = true
+        kotlinx.coroutines.delay(400) // debounce slider movement
         try {
             preview = ServiceLocator.questGenerator.previewCustomQuestReward(
                 type = selectedType,
@@ -860,6 +926,12 @@ private fun CustomQuestSheet(
 
             // Target value
             if (selectedType == "step") {
+                // Dynamic minimum: 50% of user's average, floor at 1000
+                val minSteps = maxOf(1000L, (preview?.info?.let {
+                    Regex("avg: ([0-9,]+)").find(it)?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
+                } ?: 2000L) / 2)
+                if (targetValue < minSteps) targetValue = minSteps
+
                 Text("Target Steps", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -870,14 +942,19 @@ private fun CustomQuestSheet(
                 Spacer(modifier = Modifier.height(4.dp))
                 Slider(
                     value = targetValue.toFloat(),
-                    onValueChange = { targetValue = it.toLong() },
-                    valueRange = 1000f..20000f,
-                    steps = 18,
+                    onValueChange = { targetValue = maxOf(minSteps, it.toLong()) },
+                    valueRange = minSteps.toFloat()..20000f,
+                    steps = 19,
                     colors = SliderDefaults.colors(
                         thumbColor = TimeBetWhite,
                         activeTrackColor = TimeBetGreen,
                         inactiveTrackColor = TimeBetBorder
                     )
+                )
+                Text(
+                    "Minimum: ${formatQuestValue(minSteps)} steps (50% of your average)",
+                    style = TimeBetTypography.labelSmall,
+                    color = TimeBetTextTertiary
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),

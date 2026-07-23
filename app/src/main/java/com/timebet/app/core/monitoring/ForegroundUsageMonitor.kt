@@ -115,9 +115,12 @@ class ForegroundUsageMonitor(
                 val isWalkingNow = state is com.timebet.app.core.monitoring.WalkState.Walking
                 _isWalking.value = isWalkingNow
                 if (isWalkingNow) {
+                    walkDetector.onWalkingStarted() // start stationary checks
                     val active = _activeApp.value
                     if (active is ActiveAppState.Active && !walkWarningShown) {
                         walkWarningShown = true
+                        // Read multiplier from settings, not hardcoded
+                        _walkMultiplier = walkDetector.getMultiplier()
                         val intent = Intent(context, WalkWarningActivity::class.java).apply {
                             putExtra(WalkWarningActivity.EXTRA_APP_NAME,
                                 controlledPackages.find { it == active.packageName } ?: active.packageName)

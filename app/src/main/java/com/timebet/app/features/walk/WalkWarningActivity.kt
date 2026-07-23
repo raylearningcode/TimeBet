@@ -55,7 +55,7 @@ class WalkWarningActivity : ComponentActivity() {
                     },
                     onContinueWith2x = {
                         // Tell monitor to use 2x multiplier
-                        ServiceLocator.usageMonitor.setWalkMultiplier(2.0)
+                        // Multiplier already set by monitor before launching this activity
                         finish()
                     },
                     onDismiss = {
@@ -110,8 +110,9 @@ private fun WalkWarningScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            val multiplier = ServiceLocator.usageMonitor.walkMultiplier
             Text(
-                "Continued use will burn time at 2x the normal rate",
+                "Continued use will burn time at ${multiplier}x the normal rate",
                 style = MaterialTheme.typography.labelMedium,
                 color = TimeBetAmber,
                 textAlign = TextAlign.Center
@@ -148,7 +149,7 @@ private fun WalkWarningScreen(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TimeBetTextSecondary),
                 border = androidx.compose.foundation.BorderStroke(0.5.dp, TimeBetBorder)
             ) {
-                Text("I need this (2x time)", color = TimeBetTextSecondary)
+                Text("I need this (${multiplier}x time)", color = TimeBetTextSecondary)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
