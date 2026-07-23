@@ -53,6 +53,10 @@ class ForegroundUsageMonitor(
     private var consecutiveEmptyPolls = 0
     private var pollIntervalMs = 2000L // 2 second polling
 
+    // Walk multiplier — set by WalkWarningActivity when user chooses "I need this"
+    private var _walkMultiplier: Double = 1.0
+    val walkMultiplier: Double get() = _walkMultiplier
+
     companion object {
         private const val TAG = "ForegroundUsageMonitor"
         /** Number of empty polls before performing a usage-stats verification */
@@ -107,6 +111,15 @@ class ForegroundUsageMonitor(
      */
     fun setPollInterval(ms: Long) {
         pollIntervalMs = ms.coerceIn(1000L, 10000L)
+    }
+
+    /**
+     * Set walk multiplier applied to time deduction when walking is detected
+     * and the user chooses to continue using the controlled app.
+     * Called by WalkWarningActivity on the "I need this (2x time)" action.
+     */
+    fun setWalkMultiplier(multiplier: Double) {
+        _walkMultiplier = multiplier.coerceAtLeast(1.0)
     }
 
     /**
