@@ -138,7 +138,7 @@ class AppRepository(
         // Session stats
         val sessionStats = appUsageSessionDao.getAppSessionStats(packageName, startOfToday, endOfToday)
 
-        // Weekly usage (this week, Mon-Sun)
+        // Weekly usage (rolling 7-day window ending today)
         val weeklyUsage = mutableListOf<DailyUsagePoint>()
         for (i in 6 downTo 0) {
             val day = LocalDate.now().minusDays(i.toLong())
@@ -171,6 +171,8 @@ class AppRepository(
         val yesterdayUsage = yesterdayAgg?.usageSeconds ?: 0L
         val trendVsYesterday = if (yesterdayUsage > 0) {
             (todayUsage - yesterdayUsage).toDouble() / yesterdayUsage
+        } else if (todayUsage > 0) {
+            1.0  // 100% increase — yesterday had 0, today has usage
         } else 0.0
 
         // Trend vs last week average
@@ -178,6 +180,8 @@ class AppRepository(
         val lastWeekAvg = lastWeekTotal / 7.0
         val trendVsLastWeek = if (lastWeekAvg > 0) {
             (todayUsage - lastWeekAvg) / lastWeekAvg
+        } else if (todayUsage > 0) {
+            1.0
         } else 0.0
 
         // Ranking among controlled apps
@@ -187,8 +191,8 @@ class AppRepository(
         val ranked = allControlled
             .map { it.packageName to (usageMap[it.packageName] ?: 0L) }
             .sortedByDescending { it.second }
-        val rank = ranked.indexOfFirst { it.first == packageName } + 1
         val totalControlled = allControlled.size
+        val rank = ranked.indexOfFirst { it.first == packageName }.let { if (it >= 0) it + 1 else totalControlled }
 
         // Percent of daily allowance
         val settings = ServiceLocator.database.userSettingsDao().get()
