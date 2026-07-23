@@ -17,5 +17,6 @@ data class AppUsageSessionEntity(
     // Sync columns
     val syncStatus: String = "pending", // "pending" | "synced"
     val serverId: String? = null,       // UUID from Supabase
-    val deviceId: String = "unknown"
+    val deviceId: String = "unknown",
+    val deviceName: String = ""         // NEW — e.g. "Samsung Galaxy S24"
 )

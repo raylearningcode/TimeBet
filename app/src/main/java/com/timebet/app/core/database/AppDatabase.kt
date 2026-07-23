@@ -29,7 +29,7 @@ import com.timebet.app.core.database.entity.UserSettingsEntity
         SportsPredictionEntity::class,
         DailyUsageAggregateEntity::class
     ],
-    version = 5,
+    version = 6,  // bumped from 5
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
