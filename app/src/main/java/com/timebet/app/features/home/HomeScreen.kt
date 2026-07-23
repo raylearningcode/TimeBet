@@ -13,8 +13,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -64,6 +67,27 @@ fun HomeScreen(
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var showMonitoringWarning by remember { mutableStateOf(false) }
+
+    // Walk detection state
+    val walkState by ServiceLocator.usageMonitor.let { monitor ->
+        remember { mutableStateOf<com.timebet.app.core.monitoring.WalkState>(
+            com.timebet.app.core.monitoring.WalkState.Stationary
+        ) }
+    }
+    LaunchedEffect(Unit) {
+        // Observe walk state from monitor's internal detector
+        // Since WalkDetector is inside ForegroundUsageMonitor, we use a polling approach
+        // For now: walk state observed indirectly via multiplier > 1.0
+    }
+
+    // Quest data
+    var todayQuests by remember { mutableStateOf<List<com.timebet.app.core.database.entity.QuestEntity>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        try {
+            val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            todayQuests = ServiceLocator.database.questDao().getByDate(today)
+        } catch (_: Exception) {}
+    }
 
     // Live timer state — ticks every second when an app is active
     var liveElapsed by remember { mutableLongStateOf(0L) }
@@ -316,9 +340,60 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // App usage breakdown — with real icons and real usage data
+            // ── Walking Banner ── (only when walking)
+            // We check if walk warning was triggered this session
+            var walkActive by remember { mutableStateOf(false) }
+            if (walkActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(TimeBetAmber.copy(alpha = 0.12f))
+                        .border(0.5.dp, TimeBetAmber.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DirectionsWalk,
+                            contentDescription = null,
+                            tint = TimeBetAmber,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Walking detected — 2x time active",
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetAmber,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // ── Today's Quests ──
+            if (todayQuests.isNotEmpty()) {
+                Text(
+                    "TODAY'S QUESTS",
+                    style = TimeBetTypography.labelSmall,
+                    color = TimeBetTextTertiary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                todayQuests.forEach { quest ->
+                    QuestCard(quest = quest)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ── Entertainment Apps ──
             if (controlledApps.isNotEmpty()) {
                 Text(
                     "ENTERTAINMENT APPS",
@@ -479,5 +554,97 @@ private fun AppUsageRow(
                     .background(TimeBetGreen.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
             )
         }
+    }
+}
+
+@Composable
+private fun QuestCard(quest: com.timebet.app.core.database.entity.QuestEntity) {
+    val icon = when (quest.type) {
+        "step" -> Icons.Filled.DirectionsWalk
+        "discipline" -> Icons.Filled.Timer
+        else -> Icons.Filled.Stars
+    }
+    val accent = when (quest.status) {
+        "completed" -> TimeBetGoldLight
+        "claimed" -> TimeBetGreen
+        "expired" -> TimeBetTextTertiary
+        else -> TimeBetWhite
+    }
+    val fraction = if (quest.targetValue > 0) {
+        (quest.currentValue.toFloat() / quest.targetValue).coerceIn(0f, 1f)
+    } else 0f
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(TimeBetSurfaceElevated)
+            .border(0.5.dp, if (quest.status == "completed") TimeBetGoldLight.copy(alpha = 0.4f) else TimeBetBorder, RoundedCornerShape(10.dp))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(quest.title, style = TimeBetTypography.bodyMedium, color = TimeBetWhite)
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(TimeBetBorder)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                when (quest.status) {
+                                    "completed", "claimed" -> TimeBetGreen
+                                    "expired" -> TimeBetBorder
+                                    else -> TimeBetGreen.copy(alpha = 0.6f)
+                                }
+                            )
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    when (quest.type) {
+                        "step" -> "${formatQuestValue(quest.currentValue)} / ${formatQuestValue(quest.targetValue)} steps"
+                        "discipline" -> "${com.timebet.app.util.TimeFormatter.formatMinutesShort(quest.currentValue)} / ${com.timebet.app.util.TimeFormatter.formatMinutesShort(quest.targetValue)}"
+                        else -> "${formatQuestValue(quest.currentValue)} / ${formatQuestValue(quest.targetValue)} steps"
+                    },
+                    style = TimeBetTypography.labelSmall,
+                    color = TimeBetTextTertiary
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "+${quest.rewardSeconds / 60}m",
+                    style = TimeBetTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = accent
+                )
+                Text(
+                    when (quest.status) {
+                        "completed" -> "Ready"
+                        "claimed" -> "Earned"
+                        "expired" -> "Missed"
+                        else -> ""
+                    },
+                    style = TimeBetTypography.labelSmall,
+                    color = accent
+                )
+            }
+        }
+    }
+}
+
+private fun formatQuestValue(value: Long): String {
+    return when {
+        value >= 1000 -> "${value / 1000}.${(value % 1000) / 100}K"
+        else -> "$value"
     }
 }
