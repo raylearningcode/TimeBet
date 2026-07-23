@@ -24,7 +24,8 @@ import java.util.concurrent.TimeUnit
 class DailyResetManager(
     private val context: Context,
     private val timeBankEngine: TimeBankEngine,
-    private val sportsPredictionDao: SportsPredictionDao
+    private val sportsPredictionDao: SportsPredictionDao,
+    private val questGenerator: com.timebet.app.core.quests.QuestGenerator
 ) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
@@ -91,6 +92,49 @@ class DailyResetManager(
             newStatus = PredictionStatus.PENDING_LOCKED,
             today = today
         )
+
+        // Generate today's quests if this is a new day
+        if (bank.date != today) {
+            try {
+                val quests = questGenerator.generateDailyQuests(today)
+                for (q in quests) {
+                    com.timebet.app.ServiceLocator.database.questDao().upsert(q)
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Settle discipline quests from yesterday (check if they stayed under target)
+        try {
+            val yesterday = LocalDate.now().minusDays(1).format(dateFormatter)
+            val yesterdayQuests = com.timebet.app.ServiceLocator.database.questDao().getByDate(yesterday)
+            val yesterdayUsage = getYesterdayUsageBreakdown()
+            for (q in yesterdayQuests) {
+                if (q.status == "active" && (q.type == "discipline" || q.type == "combo")) {
+                    val pkg = q.targetPackageName
+                    val usage = if (pkg != null) yesterdayUsage[pkg] ?: 0L else 0L
+                    val completed = usage < q.targetValue
+                    com.timebet.app.ServiceLocator.database.questDao().updateProgress(
+                        id = q.id,
+                        currentValue = usage,
+                        status = if (completed) "completed" else "expired",
+                        completedAt = if (completed) System.currentTimeMillis() else null
+                    )
+                    if (completed) {
+                        timeBankEngine.creditQuestReward(q.rewardSeconds)
+                        com.timebet.app.ServiceLocator.database.questDao().claim(q.id, System.currentTimeMillis())
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private suspend fun getYesterdayUsageBreakdown(): Map<String, Long> {
+        val yesterday = LocalDate.now().minusDays(1)
+        val startOfDay = yesterday.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endOfDay = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val breakdown = com.timebet.app.ServiceLocator.database.appUsageSessionDao()
+            .getUsageBreakdown(startOfDay, endOfDay)
+        return breakdown.associate { it.packageName to it.totalSeconds }
     }
 
     fun cancel() {

@@ -35,6 +35,7 @@ object ServiceLocator {
     private var _crashEngine: CrashEngine? = null
     private var _baccaratEngine: BaccaratEngine? = null
     private var _chickenEngine: ChickenEngine? = null
+    private var _questGenerator: com.timebet.app.core.quests.QuestGenerator? = null
     private var _dailyResetManager: DailyResetManager? = null
     private var _supabaseSync: SupabaseSyncManager? = null
     private var _authManager: AuthManager? = null
@@ -98,10 +99,13 @@ object ServiceLocator {
             timeBankEngine = timeBankEngine
         )
 
+        _questGenerator = com.timebet.app.core.quests.QuestGenerator(context)
+
         _dailyResetManager = DailyResetManager(
             context = context,
             timeBankEngine = timeBankEngine,
-            sportsPredictionDao = database.sportsPredictionDao()
+            sportsPredictionDao = database.sportsPredictionDao(),
+            questGenerator = _questGenerator!!
         )
 
         _supabaseSync = SupabaseSyncManager(context)
@@ -123,6 +127,7 @@ object ServiceLocator {
     val crashEngine: CrashEngine get() = _crashEngine!!
     val baccaratEngine: BaccaratEngine get() = _baccaratEngine!!
     val chickenEngine: ChickenEngine get() = _chickenEngine!!
+    val questGenerator: com.timebet.app.core.quests.QuestGenerator get() = _questGenerator!!
     val dailyResetManager: DailyResetManager get() = _dailyResetManager!!
     val supabaseSync: SupabaseSyncManager get() = _supabaseSync!!
     val authManager: AuthManager get() = _authManager!!
