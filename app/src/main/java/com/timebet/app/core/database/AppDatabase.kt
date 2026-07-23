@@ -9,6 +9,7 @@ import com.timebet.app.core.database.dao.CasinoRoundDao
 import com.timebet.app.core.database.dao.ControlledAppDao
 import com.timebet.app.core.database.dao.DailyTimeBankDao
 import com.timebet.app.core.database.dao.DailyUsageAggregateDao
+import com.timebet.app.core.database.dao.QuestDao
 import com.timebet.app.core.database.dao.SportsPredictionDao
 import com.timebet.app.core.database.dao.UserSettingsDao
 import com.timebet.app.core.database.entity.AppUsageSessionEntity
@@ -16,6 +17,7 @@ import com.timebet.app.core.database.entity.CasinoRoundEntity
 import com.timebet.app.core.database.entity.ControlledAppEntity
 import com.timebet.app.core.database.entity.DailyTimeBankEntity
 import com.timebet.app.core.database.entity.DailyUsageAggregateEntity
+import com.timebet.app.core.database.entity.QuestEntity
 import com.timebet.app.core.database.entity.SportsPredictionEntity
 import com.timebet.app.core.database.entity.UserSettingsEntity
 
@@ -27,9 +29,10 @@ import com.timebet.app.core.database.entity.UserSettingsEntity
         AppUsageSessionEntity::class,
         CasinoRoundEntity::class,
         SportsPredictionEntity::class,
-        DailyUsageAggregateEntity::class
+        DailyUsageAggregateEntity::class,
+        QuestEntity::class
     ],
-    version = 6,  // bumped from 5
+    version = 7,  // bumped from 6
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun casinoRoundDao(): CasinoRoundDao
     abstract fun sportsPredictionDao(): SportsPredictionDao
     abstract fun dailyUsageAggregateDao(): DailyUsageAggregateDao
+    abstract fun questDao(): QuestDao
 
     companion object {
         private const val DATABASE_NAME = "timebet.db"
