@@ -375,7 +375,8 @@ class ForegroundUsageMonitor(
                     startedAt = session.startTime,
                     endedAt = endTime,
                     durationSeconds = durationSeconds,
-                    wasControlled = true
+                    wasControlled = true,
+                    deviceName = com.timebet.app.ServiceLocator.authManager.deviceName
                 )
             )
         }
