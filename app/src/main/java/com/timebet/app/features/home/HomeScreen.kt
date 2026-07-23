@@ -378,52 +378,104 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // ── Today's Quests ──
+            // ── Today's Quests ── (collapsible)
+            var questsExpanded by remember { mutableStateOf(false) }
             if (todayQuests.isNotEmpty()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { questsExpanded = !questsExpanded }
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "TODAY'S QUESTS",
-                        style = TimeBetTypography.labelSmall,
-                        color = TimeBetTextTertiary
-                    )
-                    // Refresh button
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                try {
-                                    val today = java.time.LocalDate.now()
-                                        .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                                    val existing = ServiceLocator.database.questDao().getByDate(today)
-                                    if (existing.isEmpty()) {
-                                        val quests = ServiceLocator.questGenerator.generateDailyQuests(today)
-                                        for (q in quests) {
-                                            ServiceLocator.database.questDao().upsert(q)
-                                        }
-                                    }
-                                    todayQuests = ServiceLocator.database.questDao().getByDate(today)
-                                } catch (_: Exception) {}
-                            }
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Stars, null, tint = TimeBetGoldLight, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "TODAY'S QUESTS",
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetTextTertiary
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (questsExpanded) "hide" else "${todayQuests.size} quests",
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetTextTertiary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            Icons.Filled.Refresh,
-                            "Refresh quests",
+                            if (questsExpanded) Icons.Filled.ChevronRight else Icons.Filled.ChevronRight,
+                            null,
                             tint = TimeBetTextTertiary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
 
-                todayQuests.forEach { quest ->
-                    QuestCard(quest = quest)
-                    Spacer(modifier = Modifier.height(8.dp))
+                if (questsExpanded) {
+                    todayQuests.forEach { quest ->
+                        QuestCard(quest = quest)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    // Action buttons
+                    var showCustomQuest2 by remember { mutableStateOf(false) }
+                    var isAiLoading2 by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { showCustomQuest2 = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Add, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Custom", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        }
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    isAiLoading2 = true
+                                    try {
+                                        val today = java.time.LocalDate.now()
+                                            .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                        val quests2 = ServiceLocator.questGenerator.generateDailyQuests(today)
+                                        for (q in quests2) {
+                                            ServiceLocator.database.questDao().upsert(q)
+                                        }
+                                        todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                                    } catch (_: Exception) {}
+                                    isAiLoading2 = false
+                                }
+                            },
+                            enabled = !isAiLoading2,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Refresh, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Regenerate", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        }
+                    }
+                    if (showCustomQuest2) {
+                        CustomQuestSheet(
+                            onDismiss = { showCustomQuest2 = false },
+                            onQuestCreated = {
+                                showCustomQuest2 = false
+                                scope.launch {
+                                    try {
+                                        val today = java.time.LocalDate.now()
+                                            .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                        todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             } else {
                 // No quests yet — show generate button
                 Box(
@@ -484,100 +536,7 @@ fun HomeScreen(
                 }
             }
 
-            // ── Quest Action Buttons ──
-            var showCustomQuest by remember { mutableStateOf(false) }
-            var isAiLoading by remember { mutableStateOf(false) }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TextButton(
-                    onClick = { showCustomQuest = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Filled.Add, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Custom", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
-                }
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            isAiLoading = true
-                            try {
-                                // Get user stats for AI
-                                val today = java.time.LocalDate.now()
-                                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                                val generator = ServiceLocator.questGenerator
-                                // Use the existing daily quests or generate new ones via Gemini
-                                val apps = ServiceLocator.appRepository.getAllControlledApps()
-                                val now = System.currentTimeMillis()
-                                val weekStart = java.time.LocalDate.now().minusDays(7)
-                                    .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                val breakdown = ServiceLocator.database.appUsageSessionDao()
-                                    .getUsageBreakdown(weekStart, now)
-                                val topApps = breakdown.take(3).map { b ->
-                                    val app = apps.find { it.packageName == b.packageName }
-                                    Pair(app?.appName ?: b.packageName, b.totalSeconds / 7 / 60)
-                                }
-                                val suggestions = com.timebet.app.core.quests.GeminiQuestAdvisor.getSuggestions(
-                                    context, 5000.0, "stable", topApps
-                                )
-                                if (suggestions.isNotEmpty()) {
-                                    for (s in suggestions) {
-                                        val entity = com.timebet.app.core.database.entity.QuestEntity(
-                                            id = java.util.UUID.randomUUID().toString(),
-                                            date = today,
-                                            type = s.type,
-                                            title = s.title,
-                                            targetValue = if (s.type == "step") s.targetSteps else s.targetMinutes * 60,
-                                            targetPackageName = if (s.type == "discipline" || s.type == "combo")
-                                                apps.find { it.appName.equals(s.targetApp, ignoreCase = true) }?.packageName
-                                                ?: s.targetApp else null,
-                                            currentValue = 0,
-                                            rewardSeconds = s.rewardMinutes * 60,
-                                            status = "active"
-                                        )
-                                        ServiceLocator.database.questDao().upsert(entity)
-                                    }
-                                    todayQuests = ServiceLocator.database.questDao().getByDate(today)
-                                }
-                            } catch (_: Exception) {
-                                // Gemini unavailable — fall back silently, user can use Generate Quests
-                            }
-                            isAiLoading = false
-                        }
-                    },
-                    enabled = !isAiLoading,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (isAiLoading) {
-                        CircularProgressIndicator(color = TimeBetGoldLight, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Filled.Stars, null, tint = TimeBetGoldLight, modifier = Modifier.size(14.dp))
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("AI Suggest", style = TimeBetTypography.labelSmall, color = TimeBetGoldLight)
-                }
-            }
-
-            // Custom quest bottom sheet
-            if (showCustomQuest) {
-                CustomQuestSheet(
-                    onDismiss = { showCustomQuest = false },
-                    onQuestCreated = {
-                        showCustomQuest = false
-                        scope.launch {
-                            try {
-                                val today = java.time.LocalDate.now()
-                                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                                todayQuests = ServiceLocator.database.questDao().getByDate(today)
-                            } catch (_: Exception) {}
-                        }
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ── Entertainment Apps ──
             if (controlledApps.isNotEmpty()) {

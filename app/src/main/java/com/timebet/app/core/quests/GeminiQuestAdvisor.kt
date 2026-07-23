@@ -20,7 +20,7 @@ object GeminiQuestAdvisor {
 
     // Free Gemini API key — user should set this in build config or settings
     // Using gemini-1.5-flash which has a generous free tier
-    private const val GEMINI_API_KEY = "AIzaSyDummyKeyReplaceWithRealOne"
+    private val GEMINI_API_KEY: String get() = com.timebet.app.BuildConfig.GEMINI_API_KEY
     private const val GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
     /**
