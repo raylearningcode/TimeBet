@@ -148,6 +148,8 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
     var isLoading by remember { mutableStateOf(true) }
     var appUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var controlledApps by remember { mutableStateOf<List<com.timebet.app.core.database.entity.ControlledAppEntity>>(emptyList()) }
+    // Device popup state
+    var selectedDeviceForPopup by remember { mutableStateOf<DeviceUsageInfo?>(null) }
 
     LaunchedEffect(refreshKey) {
         ServiceLocator.timeBankRepository.observeBalance().collectLatest { state ->
@@ -162,16 +164,23 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
         }
     }
 
-    // Per-device usage data
-    var deviceUsageMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    // Per-device usage data with real names
+    var deviceUsageData by remember { mutableStateOf<List<DeviceUsageInfo>>(emptyList()) }
     LaunchedEffect(Unit) {
         try {
             val now = System.currentTimeMillis()
             val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val sessions = ServiceLocator.database.appUsageSessionDao().getByDateRange(startOfDay, now)
-            deviceUsageMap = sessions
-                .groupBy { it.deviceId.ifEmpty { "unknown" } }
-                .mapValues { (_, list) -> list.sumOf { it.durationSeconds } }
+            val deviceMap = mutableMapOf<String, DeviceUsageInfo>()
+            for (s in sessions) {
+                val id = s.deviceId.ifEmpty { "unknown" }
+                val name = s.deviceName.ifEmpty { id }
+                val existing = deviceMap.getOrPut(id) {
+                    DeviceUsageInfo(id, name, 0L)
+                }
+                deviceMap[id] = existing.copy(usageSeconds = existing.usageSeconds + s.durationSeconds)
+            }
+            deviceUsageData = deviceMap.values.toList()
         } catch (_: Exception) { }
     }
 
@@ -346,23 +355,38 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
             }
 
             // Per-device breakdown (shown when multiple devices synced)
-            if (deviceUsageMap.size > 1) {
+            if (deviceUsageData.size > 1) {
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     SectionHeader("By Device")
                     Spacer(modifier = Modifier.height(4.dp))
                 }
                 val currentDeviceId = ServiceLocator.authManager.deviceIdVal
-                val currentDeviceName = ServiceLocator.authManager.deviceName
-                deviceUsageMap.entries.forEachIndexed { idx, (deviceId, usage) ->
-                    val name = if (deviceId == currentDeviceId) currentDeviceName else "Other Device"
-                    val fraction = if (todayUsage > 0) usage.toFloat() / todayUsage else 0f
+                deviceUsageData.forEachIndexed { idx, device ->
+                    val isCurrentDevice = device.deviceId == currentDeviceId
+                    val fraction = if (todayUsage > 0) device.usageSeconds.toFloat() / todayUsage else 0f
                     item(key = "device_$idx") {
-                        DeviceUsageRow(name, usage, fraction, deviceId == currentDeviceId)
+                        DeviceUsageRow(
+                            deviceName = device.deviceName,
+                            usageSeconds = device.usageSeconds,
+                            fraction = fraction,
+                            isCurrentDevice = isCurrentDevice,
+                            onClick = if (!isCurrentDevice) {
+                                { selectedDeviceForPopup = device }
+                            } else null
+                        )
                     }
                 }
             }
         }
+    }
+
+    // Device App List Popup
+    selectedDeviceForPopup?.let { device ->
+        DeviceAppListPopup(
+            device = device,
+            onDismiss = { selectedDeviceForPopup = null }
+        )
     }
 }
 
@@ -1111,28 +1135,34 @@ private fun DeviceUsageRow(
     deviceName: String,
     usageSeconds: Long,
     fraction: Float,
-    isThisDevice: Boolean
+    isCurrentDevice: Boolean,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(TimeBetSurfaceElevated)
-            .border(0.5.dp, if (isThisDevice) TimeBetGreen.copy(alpha = 0.3f) else TimeBetBorder, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .then(
+                if (onClick != null) Modifier.background(TimeBetSurfaceElevated, RoundedCornerShape(10.dp))
+                    .border(0.5.dp, TimeBetBorder, RoundedCornerShape(10.dp))
+                    .clickable(onClick = onClick)
+                else Modifier.background(TimeBetSurfaceElevated, RoundedCornerShape(10.dp))
+                    .border(0.5.dp, if (isCurrentDevice) TimeBetGreen.copy(alpha = 0.3f) else TimeBetBorder, RoundedCornerShape(10.dp))
+            )
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (isThisDevice) Icons.Filled.PhoneAndroid else Icons.Filled.Tablet,
+            imageVector = Icons.Filled.PhoneAndroid,
             contentDescription = null,
-            tint = if (isThisDevice) TimeBetGreen else TimeBetTextSecondary,
+            tint = if (isCurrentDevice) TimeBetGreen else TimeBetTextSecondary,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(deviceName, style = TimeBetTypography.bodyMedium, color = TimeBetWhite)
-                if (isThisDevice) {
+                if (isCurrentDevice) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("You", style = TimeBetTypography.labelSmall, color = TimeBetGreen)
                 }
@@ -1143,20 +1173,186 @@ private fun DeviceUsageRow(
                 color = TimeBetTextTertiary
             )
         }
-        Box(
-            modifier = Modifier
-                .width(48.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(1.5.dp))
-                .background(TimeBetBorder)
-        ) {
+        if (isCurrentDevice) {
+            // Show fraction bar for current device
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .width(48.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(1.5.dp))
-                    .background(TimeBetGreen.copy(alpha = 0.5f))
+                    .background(TimeBetBorder)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(TimeBetGreen.copy(alpha = 0.5f))
+                )
+            }
+        } else {
+            // Chevron for other devices
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = "View apps",
+                tint = TimeBetTextTertiary,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
 }
+
+private data class DeviceUsageInfo(
+    val deviceId: String,
+    val deviceName: String,
+    val usageSeconds: Long
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeviceAppListPopup(
+    device: DeviceUsageInfo,
+    onDismiss: () -> Unit
+) {
+    var appList by remember { mutableStateOf<List<DeviceAppItemRow>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(device.deviceId) {
+        try {
+            val items = ServiceLocator.appRepository.getDeviceAppUsage(device.deviceId)
+            appList = items.map { item ->
+                var icon by mutableStateOf<android.graphics.drawable.Drawable?>(null)
+                try {
+                    icon = context.packageManager.getApplicationIcon(item.packageName)
+                } catch (_: Exception) {}
+                DeviceAppItemRow(item.appName, item.packageName, item.usageSeconds, icon)
+            }
+        } catch (_: Exception) { }
+        isLoading = false
+    }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = TimeBetSurfaceElevated,
+        contentColor = TimeBetWhite
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            // Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        device.deviceName,
+                        style = TimeBetTypography.headlineMedium,
+                        color = TimeBetWhite,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Apps used today",
+                        style = TimeBetTypography.labelSmall,
+                        color = TimeBetTextTertiary
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, "Close", tint = TimeBetTextSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = TimeBetBorder, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = TimeBetWhite, modifier = Modifier.size(24.dp))
+                }
+            } else if (appList.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Filled.PhoneAndroid,
+                            null,
+                            tint = TimeBetTextTertiary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No app usage recorded on this device today",
+                            style = TimeBetTypography.bodyMedium,
+                            color = TimeBetTextSecondary
+                        )
+                    }
+                }
+            } else {
+                appList.forEach { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // App icon
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(TimeBetSurfaceCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (app.icon != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context).data(app.icon).build(),
+                                    contentDescription = app.appName,
+                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp))
+                                )
+                            } else {
+                                Text(
+                                    app.appName.take(1).uppercase(),
+                                    style = TimeBetTypography.labelLarge,
+                                    color = TimeBetTextSecondary
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            app.appName,
+                            style = TimeBetTypography.bodyMedium,
+                            color = TimeBetWhite,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            TimeFormatter.formatHumanReadable(app.usageSeconds),
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetTextTertiary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class DeviceAppItemRow(
+    val appName: String,
+    val packageName: String,
+    val usageSeconds: Long,
+    val icon: android.graphics.drawable.Drawable?
+)

@@ -499,7 +499,7 @@ fun AppDetailScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(detail.percentOfAllowance.coerceIn(0f, 1f))
+                                    .fillMaxWidth(detail.percentOfAllowance.coerceIn(0.0, 1.0).toFloat())
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp))
                                     .background(
@@ -570,7 +570,8 @@ fun AppDetailScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Session type breakdown (from sessions data)
-                        val sessions = remember(detail.packageName) {
+                        var sessions by remember { mutableStateOf(emptyList<com.timebet.app.core.database.entity.AppUsageSessionEntity>()) }
+                        LaunchedEffect(detail.packageName) {
                             try {
                                 val startOfToday = LocalDate.now().atStartOfDay(
                                     java.time.ZoneId.systemDefault()
@@ -578,9 +579,9 @@ fun AppDetailScreen(
                                 val endOfToday = LocalDate.now().plusDays(1).atStartOfDay(
                                     java.time.ZoneId.systemDefault()
                                 ).toInstant().toEpochMilli()
-                                ServiceLocator.database.appUsageSessionDao()
+                                sessions = ServiceLocator.database.appUsageSessionDao()
                                     .getSessionsForApp(detail.packageName, startOfToday, endOfToday)
-                            } catch (_: Exception) { emptyList() }
+                            } catch (_: Exception) { /* empty */ }
                         }
                         val shortCount = sessions.count { it.durationSeconds in 1..299 }       // <5m
                         val mediumCount = sessions.count { it.durationSeconds in 300..1799 }    // 5-30m
