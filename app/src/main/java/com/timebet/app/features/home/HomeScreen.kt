@@ -343,8 +343,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ── Walking Banner ── (only when walking)
-            // We check if walk warning was triggered this session
-            var walkActive by remember { mutableStateOf(false) }
+            val walkActive by ServiceLocator.usageMonitor.isWalking.collectAsState()
             if (walkActive) {
                 Box(
                     modifier = Modifier
@@ -378,16 +377,107 @@ fun HomeScreen(
 
             // ── Today's Quests ──
             if (todayQuests.isNotEmpty()) {
-                Text(
-                    "TODAY'S QUESTS",
-                    style = TimeBetTypography.labelSmall,
-                    color = TimeBetTextTertiary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "TODAY'S QUESTS",
+                        style = TimeBetTypography.labelSmall,
+                        color = TimeBetTextTertiary
+                    )
+                    // Refresh button
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val today = java.time.LocalDate.now()
+                                        .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                    val existing = ServiceLocator.database.questDao().getByDate(today)
+                                    if (existing.isEmpty()) {
+                                        val quests = ServiceLocator.questGenerator.generateDailyQuests(today)
+                                        for (q in quests) {
+                                            ServiceLocator.database.questDao().upsert(q)
+                                        }
+                                    }
+                                    todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                                } catch (_: Exception) {}
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Refresh,
+                            "Refresh quests",
+                            tint = TimeBetTextTertiary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
 
                 todayQuests.forEach { quest ->
                     QuestCard(quest = quest)
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+            } else {
+                // No quests yet — show generate button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(TimeBetSurfaceElevated)
+                        .border(0.5.dp, TimeBetBorder, RoundedCornerShape(10.dp))
+                        .padding(16.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Filled.Stars,
+                            null,
+                            tint = TimeBetGoldLight,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No quests yet for today",
+                            style = TimeBetTypography.bodyMedium,
+                            color = TimeBetTextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Generate daily quests to start earning bonus time",
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetTextTertiary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val today = java.time.LocalDate.now()
+                                            .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                        val quests = ServiceLocator.questGenerator.generateDailyQuests(today)
+                                        for (q in quests) {
+                                            ServiceLocator.database.questDao().upsert(q)
+                                        }
+                                        todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                                    } catch (_: Exception) {}
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = TimeBetGoldLight,
+                                contentColor = TimeBetBlack
+                            )
+                        ) {
+                            Text(
+                                "Generate Quests",
+                                style = TimeBetTypography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
 

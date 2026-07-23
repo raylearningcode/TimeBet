@@ -62,6 +62,10 @@ class ForegroundUsageMonitor(
     private val walkDetector = WalkDetector(context)
     private var walkWarningShown = false
 
+    /** Observable walking state — emits true when walk detector detects walking. */
+    private val _isWalking = MutableStateFlow(false)
+    val isWalking: StateFlow<Boolean> = _isWalking.asStateFlow()
+
     companion object {
         private const val TAG = "ForegroundUsageMonitor"
         /** Number of empty polls before performing a usage-stats verification */
@@ -108,7 +112,9 @@ class ForegroundUsageMonitor(
         // Observe walking state — launch warning overlay when walking + controlled app active
         scope.launch {
             walkDetector.walkState.collect { state ->
-                if (state is com.timebet.app.core.monitoring.WalkState.Walking) {
+                val isWalkingNow = state is com.timebet.app.core.monitoring.WalkState.Walking
+                _isWalking.value = isWalkingNow
+                if (isWalkingNow) {
                     val active = _activeApp.value
                     if (active is ActiveAppState.Active && !walkWarningShown) {
                         walkWarningShown = true

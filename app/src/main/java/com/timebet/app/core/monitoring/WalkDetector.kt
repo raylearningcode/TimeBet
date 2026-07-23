@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Detects walking via accelerometer peak detection.
  *
  * Algorithm: samples accelerometer at SENSOR_DELAY_GAME (~20ms),
- * detects magnitude peaks above 1.2g, requires ≥3 peaks in 3 seconds
+ * detects magnitude peaks above 1.08g, requires ≥2 peaks in 3 seconds
  * to transition to WALKING, and 10s of no peaks to return to STATIONARY.
  */
 class WalkDetector(private val context: Context) {
@@ -38,15 +38,15 @@ class WalkDetector(private val context: Context) {
 
             val now = System.currentTimeMillis()
 
-            if (magnitude > 1.2) { // peak above 1.2g threshold
-                if (now - lastPeakTime >= 300) { // minimum 300ms gap between peaks
+            if (magnitude > 1.08) { // peak above 1.08g threshold (sensitive enough for casual walking)
+                if (now - lastPeakTime >= 250) { // minimum 250ms gap between peaks
                     peakTimestamps.add(now)
                     lastPeakTime = now
 
                     // Keep only peaks from the last 3 seconds
                     peakTimestamps.removeAll { now - it > 3000 }
 
-                    if (peakTimestamps.size >= 3 && _walkState.value !is WalkState.Walking) {
+                    if (peakTimestamps.size >= 2 && _walkState.value !is WalkState.Walking) {
                         _walkState.value = WalkState.Walking
                     }
                 }
