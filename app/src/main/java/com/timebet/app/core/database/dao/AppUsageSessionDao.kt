@@ -66,7 +66,7 @@ interface AppUsageSessionDao {
     """)
     suspend fun getSessionCounts(startOfDay: Long, endOfDay: Long): List<SessionCountResult>
 
-        // ─── Sync methods ───
+    // ─── Sync methods ───
 
     @Query("SELECT * FROM app_usage_sessions WHERE syncStatus = 'pending' LIMIT 50")
     suspend fun getUnsynced(): List<AppUsageSessionEntity>
@@ -128,16 +128,6 @@ interface AppUsageSessionDao {
         deviceId: String, startOfDay: Long, endOfDay: Long
     ): List<AppUsageBreakdown>
 
-    /**
-     * All distinct devices that have sessions today, with their names.
-     */
-    @Query("""
-        SELECT DISTINCT deviceId, deviceName
-        FROM app_usage_sessions
-        WHERE startedAt >= :startOfDay AND startedAt < :endOfDay
-          AND deviceId != 'unknown'
-    """)
-    suspend fun getDistinctDevices(startOfDay: Long, endOfDay: Long): List<DeviceInfo>
 }
 
 data class AppUsageBreakdown(
@@ -160,9 +150,4 @@ data class AppSessionStats(
     val avgSeconds: Long,
     val maxSeconds: Long,
     val minSeconds: Long
-)
-
-data class DeviceInfo(
-    val deviceId: String,
-    val deviceName: String
 )

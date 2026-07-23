@@ -174,7 +174,7 @@ private fun ScreenTimeTab(refreshKey: Int = 0) {
             val deviceMap = mutableMapOf<String, DeviceUsageInfo>()
             for (s in sessions) {
                 val id = s.deviceId.ifEmpty { "unknown" }
-                val name = s.deviceName.ifEmpty { id }
+                val name = s.deviceName.ifEmpty { "Device ${id.take(8)}" }
                 val existing = deviceMap.getOrPut(id) {
                     DeviceUsageInfo(id, name, 0L)
                 }

@@ -79,7 +79,8 @@ object ServiceLocator {
             context = context,
             controlledAppDao = database.controlledAppDao(),
             appUsageSessionDao = database.appUsageSessionDao(),
-            dailyUsageAggregateDao = database.dailyUsageAggregateDao()
+            dailyUsageAggregateDao = database.dailyUsageAggregateDao(),
+            userSettingsDao = database.userSettingsDao()
         )
 
         _permissionMonitor = PermissionHealthMonitor(context)

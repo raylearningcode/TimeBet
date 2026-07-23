@@ -2,10 +2,10 @@ package com.timebet.app.data.repositories
 
 import android.content.Context
 import android.content.pm.PackageManager
-import com.timebet.app.ServiceLocator
 import com.timebet.app.core.database.dao.AppUsageSessionDao
 import com.timebet.app.core.database.dao.ControlledAppDao
 import com.timebet.app.core.database.dao.DailyUsageAggregateDao
+import com.timebet.app.core.database.dao.UserSettingsDao
 import com.timebet.app.core.database.entity.AppUsageSessionEntity
 import com.timebet.app.core.database.entity.ControlledAppEntity
 import com.timebet.app.core.database.entity.DailyUsageAggregateEntity
@@ -67,7 +67,8 @@ class AppRepository(
     private val context: Context,
     private val controlledAppDao: ControlledAppDao,
     private val appUsageSessionDao: AppUsageSessionDao,
-    private val dailyUsageAggregateDao: DailyUsageAggregateDao
+    private val dailyUsageAggregateDao: DailyUsageAggregateDao,
+    private val userSettingsDao: UserSettingsDao
 ) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
@@ -195,7 +196,7 @@ class AppRepository(
         val rank = ranked.indexOfFirst { it.first == packageName }.let { if (it >= 0) it + 1 else totalControlled }
 
         // Percent of daily allowance
-        val settings = ServiceLocator.database.userSettingsDao().get()
+        val settings = userSettingsDao.get()
         val allowance = settings?.baseDailyAllowanceSeconds
             ?: TimeBetConstants.DEFAULT_BASE_ALLOWANCE_SECONDS
         val percentOfAllowance = if (allowance > 0) todayUsage.toDouble() / allowance else 0.0
