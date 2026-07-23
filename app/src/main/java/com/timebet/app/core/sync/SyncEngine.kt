@@ -270,7 +270,8 @@ class SyncEngine(
                             wasControlled = true,
                             syncStatus = "synced",
                             serverId = serverId,
-                            deviceId = obj.optString("device_id", "unknown")
+                            deviceId = obj.optString("device_id", "unknown"),
+                            deviceName = obj.optString("device_name", "")
                         )
                     )
                 }
