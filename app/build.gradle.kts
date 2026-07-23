@@ -100,6 +100,9 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // Health Connect
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha06")
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
