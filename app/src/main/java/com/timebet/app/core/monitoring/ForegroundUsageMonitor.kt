@@ -3,10 +3,12 @@ package com.timebet.app.core.monitoring
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.timebet.app.core.database.dao.AppUsageSessionDao
+import com.timebet.app.features.walk.WalkWarningActivity
 import com.timebet.app.core.database.dao.ControlledAppDao
 import com.timebet.app.core.database.entity.AppUsageSessionEntity
 import com.timebet.app.core.permissions.PermissionHealthMonitor
@@ -57,6 +59,9 @@ class ForegroundUsageMonitor(
     private var _walkMultiplier: Double = 1.0
     val walkMultiplier: Double get() = _walkMultiplier
 
+    private val walkDetector = WalkDetector(context)
+    private var walkWarningShown = false
+
     companion object {
         private const val TAG = "ForegroundUsageMonitor"
         /** Number of empty polls before performing a usage-stats verification */
@@ -78,6 +83,7 @@ class ForegroundUsageMonitor(
         }
 
         _isMonitoring.value = true
+        walkDetector.start()
         scope.launch {
             // Load controlled packages
             refreshControlledPackages()
@@ -98,10 +104,32 @@ class ForegroundUsageMonitor(
                 delay(pollIntervalMs)
             }
         }
+
+        // Observe walking state — launch warning overlay when walking + controlled app active
+        scope.launch {
+            walkDetector.walkState.collect { state ->
+                if (state is com.timebet.app.core.monitoring.WalkState.Walking) {
+                    val active = _activeApp.value
+                    if (active is ActiveAppState.Active && !walkWarningShown) {
+                        walkWarningShown = true
+                        val intent = Intent(context, WalkWarningActivity::class.java).apply {
+                            putExtra(WalkWarningActivity.EXTRA_APP_NAME,
+                                controlledPackages.find { it == active.packageName } ?: active.packageName)
+                            putExtra(WalkWarningActivity.EXTRA_PACKAGE_NAME, active.packageName)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    }
+                } else {
+                    walkWarningShown = false
+                }
+            }
+        }
     }
 
     fun stop() {
         _isMonitoring.value = false
+        walkDetector.stop()
         endCurrentSession()
         scope.cancel()
     }
@@ -120,6 +148,7 @@ class ForegroundUsageMonitor(
      */
     fun setWalkMultiplier(multiplier: Double) {
         _walkMultiplier = multiplier.coerceAtLeast(1.0)
+        walkWarningShown = false
     }
 
     /**
@@ -378,7 +407,8 @@ class ForegroundUsageMonitor(
             return 0
         }
 
-        val durationSeconds = durationMs / 1000L
+        val rawSeconds = durationMs / 1000L
+        val durationSeconds = (rawSeconds * _walkMultiplier).toLong()
 
         // Persist session to database
         scope.launch {
