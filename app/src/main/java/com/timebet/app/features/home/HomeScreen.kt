@@ -11,9 +11,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stars
@@ -481,6 +484,34 @@ fun HomeScreen(
                 }
             }
 
+            // ── Custom Quest Button ──
+            var showCustomQuest by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { showCustomQuest = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Add, null, tint = TimeBetTextTertiary, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Create Custom Quest", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+            }
+
+            // Custom quest bottom sheet
+            if (showCustomQuest) {
+                CustomQuestSheet(
+                    onDismiss = { showCustomQuest = false },
+                    onQuestCreated = {
+                        showCustomQuest = false
+                        scope.launch {
+                            try {
+                                val today = java.time.LocalDate.now()
+                                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                todayQuests = ServiceLocator.database.questDao().getByDate(today)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // ── Entertainment Apps ──
@@ -736,5 +767,293 @@ private fun formatQuestValue(value: Long): String {
     return when {
         value >= 1000 -> "${value / 1000}.${(value % 1000) / 100}K"
         else -> "$value"
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomQuestSheet(
+    onDismiss: () -> Unit,
+    onQuestCreated: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var selectedType by remember { mutableStateOf("step") }
+    var targetValue by remember { mutableLongStateOf(5000L) }
+    var selectedApp by remember { mutableStateOf<com.timebet.app.core.database.entity.ControlledAppEntity?>(null) }
+    var controlledApps by remember { mutableStateOf<List<com.timebet.app.core.database.entity.ControlledAppEntity>>(emptyList()) }
+    var preview by remember { mutableStateOf<com.timebet.app.core.quests.QuestRewardPreview?>(null) }
+    var isCalculating by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            controlledApps = ServiceLocator.appRepository.getAllControlledApps()
+        } catch (_: Exception) {}
+    }
+
+    // Recalculate preview when inputs change
+    LaunchedEffect(selectedType, targetValue, selectedApp) {
+        isCalculating = true
+        try {
+            preview = ServiceLocator.questGenerator.previewCustomQuestReward(
+                type = selectedType,
+                targetValue = targetValue,
+                targetPackageName = if (selectedType == "discipline") selectedApp?.packageName else null
+            )
+        } catch (_: Exception) {
+            preview = null
+        }
+        isCalculating = false
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = TimeBetSurfaceElevated,
+        contentColor = TimeBetWhite
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            // Header
+            Text(
+                "Create Custom Quest",
+                style = TimeBetTypography.headlineMedium,
+                color = TimeBetWhite,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Set your own target — reward is calculated from your data",
+                style = TimeBetTypography.labelSmall,
+                color = TimeBetTextTertiary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = TimeBetBorder, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quest type selector
+            Text("Quest Type", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("step" to "Steps", "discipline" to "App Limit").forEach { (type, label) ->
+                    FilterChip(
+                        selected = selectedType == type,
+                        onClick = { selectedType = type },
+                        label = { Text(label, style = TimeBetTypography.labelSmall) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = TimeBetWhite,
+                            selectedLabelColor = TimeBetBlack,
+                            containerColor = TimeBetSurfaceElevated,
+                            labelColor = TimeBetWhite
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Target value
+            if (selectedType == "step") {
+                Text("Target Steps", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "${formatQuestValue(targetValue)} steps",
+                    style = TimeBetTypography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                    color = TimeBetWhite
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Slider(
+                    value = targetValue.toFloat(),
+                    onValueChange = { targetValue = it.toLong() },
+                    valueRange = 1000f..20000f,
+                    steps = 18,
+                    colors = SliderDefaults.colors(
+                        thumbColor = TimeBetWhite,
+                        activeTrackColor = TimeBetGreen,
+                        inactiveTrackColor = TimeBetBorder
+                    )
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("1K", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    Text("5K", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    Text("10K", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    Text("20K", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                }
+            } else {
+                // App picker for discipline
+                Text("App to Limit", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                Spacer(modifier = Modifier.height(8.dp))
+                if (controlledApps.isEmpty()) {
+                    Text(
+                        "No entertainment apps selected. Go to Settings to add some.",
+                        style = TimeBetTypography.labelSmall,
+                        color = TimeBetTextTertiary
+                    )
+                } else {
+                    controlledApps.take(5).forEach { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (selectedApp?.packageName == app.packageName) TimeBetWhite.copy(alpha = 0.1f)
+                                    else TimeBetSurfaceElevated
+                                )
+                                .clickable { selectedApp = app }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (selectedApp?.packageName == app.packageName) Icons.Filled.RadioButtonChecked
+                                else Icons.Filled.RadioButtonUnchecked,
+                                null,
+                                tint = if (selectedApp?.packageName == app.packageName) TimeBetGreen else TimeBetTextTertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(app.appName, style = TimeBetTypography.bodyMedium, color = TimeBetWhite)
+                        }
+                    }
+                }
+
+                if (selectedApp != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Time Limit", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        com.timebet.app.util.TimeFormatter.formatHumanReadable(targetValue),
+                        style = TimeBetTypography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                        color = TimeBetWhite
+                    )
+                    Slider(
+                        value = targetValue.toFloat(),
+                        onValueChange = { targetValue = it.toLong() },
+                        valueRange = (5 * 60).toFloat()..(3 * 3600).toFloat(),
+                        steps = 34,
+                        colors = SliderDefaults.colors(
+                            thumbColor = TimeBetWhite,
+                            activeTrackColor = TimeBetGreen,
+                            inactiveTrackColor = TimeBetBorder
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("5m", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        Text("30m", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        Text("1h", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                        Text("3h", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Reward preview
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(TimeBetSurfaceCard)
+                    .padding(14.dp)
+            ) {
+                if (isCalculating) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = TimeBetWhite, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Calculating reward...", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                    }
+                } else if (preview != null) {
+                    val p = preview!!
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Estimated Reward", style = TimeBetTypography.labelSmall, color = TimeBetTextTertiary)
+                            Text(
+                                "+${p.rewardSeconds / 60}m",
+                                style = TimeBetTypography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = "tnum"
+                                ),
+                                color = TimeBetGoldLight
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Difficulty: ${p.difficulty.uppercase().replaceFirstChar { it.uppercase() }}",
+                            style = TimeBetTypography.labelSmall,
+                            color = when (p.difficulty) {
+                                "maintenance", "easy" -> TimeBetGreen
+                                "medium" -> TimeBetAmber
+                                else -> TimeBetRed
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            p.info,
+                            style = TimeBetTypography.labelSmall,
+                            color = TimeBetTextTertiary
+                        )
+                    }
+                } else {
+                    Text(
+                        "Select a target to see reward preview",
+                        style = TimeBetTypography.labelSmall,
+                        color = TimeBetTextTertiary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Create button
+            val canCreate = when (selectedType) {
+                "step" -> true
+                "discipline" -> selectedApp != null
+                else -> false
+            }
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val quest = ServiceLocator.questGenerator.createCustomQuest(
+                                type = selectedType,
+                                targetValue = targetValue,
+                                targetPackageName = if (selectedType == "discipline") selectedApp?.packageName else null
+                            )
+                            ServiceLocator.database.questDao().upsert(quest)
+                            onQuestCreated()
+                        } catch (_: Exception) {}
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                enabled = canCreate && preview != null && !isCalculating,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TimeBetGoldLight,
+                    contentColor = TimeBetBlack
+                )
+            ) {
+                Text("Create Quest", style = TimeBetTypography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = TimeBetTextTertiary)
+            }
+        }
     }
 }
